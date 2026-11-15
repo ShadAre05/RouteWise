@@ -6,7 +6,7 @@ export PGPASSWORD="${RW_OWNER_PASSWORD:-}"
 P=(psql -v ON_ERROR_STOP=1 -X -q -U rw_owner -d "$PGDATABASE")
 "${P[@]}" -c "CREATE TABLE IF NOT EXISTS rw.schema_migrations (
   version text PRIMARY KEY, filename text NOT NULL, checksum text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())"
-for f in $(ls "$ROOT"/db/migrations/V*.sql | sort); do
+for f in "$ROOT"/db/migrations/V*.sql; do
   name="$(basename "$f")"; ver="${name%%__*}"; sum="$(sha256sum "$f" | cut -d' ' -f1)"
   old="$("${P[@]}" -At -c "SELECT checksum FROM rw.schema_migrations WHERE version='$ver'")"
   if [ -n "$old" ]; then
