@@ -1,0 +1,97 @@
+== 01_schema_logic_security.sql
+ok: table users has a primary key
+ok: table refresh_tokens has a primary key
+ok: table vehicles has a primary key
+ok: table countries has a primary key
+ok: table fuel_prices has a primary key
+ok: table fuel_import_log has a primary key
+ok: table toll_tariffs has a primary key
+ok: table lodging_rates has a primary key
+ok: table speed_profiles has a primary key
+ok: table trips has a primary key
+ok: table trip_cost_lines has a primary key
+ok: table trip_refuel_stops has a primary key
+ok: 11 enumerations exist
+ok: no JSON columns (3NF, no unjustified JSON)
+ok: money columns are numeric
+ok: e-mail format and lower case are enforced (rejected, 23514)
+ok: an MD5 value or plain text cannot be stored as password_hash (rejected, 23514)
+ok: duplicate e-mail rejected (UNIQUE) (rejected, 23505)
+ok: consumption below 2.0 rejected (rejected, 23514)
+ok: tank above 120 l rejected (rejected, 23514)
+ok: vehicle of a non-existing user rejected (FK) (rejected, 23503)
+ok: negative fuel price rejected (rejected, 23514)
+ok: second price for the same country/fuel/week rejected (rejected, 23505)
+ok: price for an unknown country rejected (FK) (rejected, 23503)
+ok: average speed above the motorway limit rejected (rejected, 23514)
+ok: successful import must have a bulletin date (rejected, 23514)
+ok: arrival before departure rejected (rejected, 23514)
+ok: trip with a vehicle of another user rejected (trigger) (rejected, 23503)
+ok: trip total different from the sum of cost lines rejected
+ok: trip with a matching total accepted
+ok: password stored only as a bcrypt hash (cost 12)
+ok: e-mail normalised to lower case
+ok: login with the right password works
+ok: login with a wrong password fails
+ok: login of an unknown user fails
+ok: 5 failed logins lock the account (US-02)
+ok: locked account rejects even the right password
+ok: account works again after the lock expires
+ok: change_password with a wrong old password is refused
+ok: change_password succeeds
+ok: password change revoked refresh tokens
+ok: new password works
+ok: password shorter than 8 characters rejected (rejected, 23514)
+ok: registration without accepting the privacy notice rejected (rejected, 23514)
+ok: changing the password of another user rejected (rejected, 42501)
+ok: the first vehicle becomes default automatically
+ok: the second vehicle is not default
+ok: marking a default unmarks the previous one
+ok: inserting with is_default keeps exactly one default
+ok: deleting the default vehicle promotes another one
+ok: updated_at is set by trigger
+ok: saved trip cannot be changed (only the title) (rejected, 23000)
+ok: the title of a saved trip can be edited
+ok: deleting a vehicle keeps its trips with the vehicle snapshot (US-04)
+ok: rw_app is not a superuser
+ok: rw_owner is not a superuser
+ok: roles app_read, app_write, rw_admin exist
+ok: rw_app (Anna) sees only her own vehicles (RLS)
+ok: rw_app (Anna) sees only her own trips (RLS)
+ok: cost lines of other users are invisible (RLS)
+ok: view v_trip_history respects RLS (security_invoker)
+ok: arrival is shown in destination local time (CZ, UTC+2 in October)
+ok: rw_app can read reference data
+ok: rw_app can read latest fuel prices
+ok: without a user context nothing is visible
+ok: rw_app cannot read password_hash (rejected, 42501)
+ok: rw_app cannot insert a vehicle for another user (RLS WITH CHECK) (rejected, 42501)
+ok: rw_app cannot update trip amounts (column privilege) (rejected, 42501)
+ok: rw_app cannot change reference data (rejected, 42501)
+ok: rw_app cannot drop tables (rejected, 42501)
+ok: rw_app cannot create objects (rejected, 42501)
+ok: rw_app cannot truncate (rejected, 42501)
+ok: rw_reporting cannot read the users table (rejected, 42501)
+ok: rw_reporting cannot read raw trips (rejected, 42501)
+ok: rw_reporting is read-only (rejected, 42501)
+ok: administrator cannot read password hashes either (rejected, 42501)
+ok: administrator can update tariffs
+ok: import procedure adds a price and refreshes the materialized view
+ok: a repeated import of the same week does not overwrite the price
+ok: a failed import keeps the old prices (US-21)
+ok: mask_email hides the local part
+ok: mask_email keeps NULL
+ok: season_for: winter = 1 Nov - 31 Mar
+ok: price trend returns at most 12 bulletins
+ok: a country without the newest bulletin keeps its latest older price
+ok: one speed profile per country for the current season
+ok: cost summary view adds lines by kind
+ok: cost summary flags missing data
+ok: reporting view shows only masked e-mails
+ok: no full e-mail in the masked view
+ok: anonymized trips are readable for reporting
+ok: anonymized trips contain no user id, titles or place names
+ok: delete_account removes the user and all personal data (cascade)
+== login as the application role
+rw_app superuser: false
+ALL TESTS PASSED
