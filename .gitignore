@@ -1,0 +1,8 @@
+.env
+*.log
+.pgdata/
+__pycache__/
+.idea/
+.gradle/
+build/
+node_modules/
