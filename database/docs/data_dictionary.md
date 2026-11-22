@@ -410,6 +410,7 @@ Refuel plan of a trip (US-30): where and how much to refuel. A tip, not part of 
 |---|---|---|
 | `register_user`, `authenticate`, `change_password`, `delete_account` | functions (SECURITY DEFINER) | bcrypt hashing, lock after 5 failures, token revocation, erasure (US-01, 02, 19, 20) |
 | `import_fuel_price`, `finish_fuel_import` | procedures | weekly import, log, refresh of the materialized view (US-09, US-21) |
+| `consume_refresh_token`, `revoke_refresh_token` | functions (SECURITY DEFINER) | refresh-token rotation without a user context (back-end, US-02) |
 | `season_for`, `local_arrival`, `mask_email`, `current_app_user` | functions | helpers |
 | `trg_set_updated_at` | trigger | `updated_at` on vehicles and reference tables |
 | `trg_vehicle_default`, `trg_vehicle_after_delete` | triggers | exactly one default vehicle per user |

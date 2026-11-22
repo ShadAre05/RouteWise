@@ -10,7 +10,7 @@ db/bootstrap.sql        roles, database, extensions, schema (run once by a super
 db/migrations/V*.sql    numbered DDL migrations (the only way the structure changes)
 db/seed/S*.sql          reference data (countries with borders, demo rates) - idempotent
 db/testdata/T*.sql      test data with edge cases (users, vehicles, prices, trips)
-db/tests/*.sql          automated tests (93 checks: constraints, triggers, roles, RLS, masking)
+db/tests/*.sql          automated tests (97 checks: constraints, triggers, roles, RLS, masking)
 scripts/                bootstrap.sh, migrate.sh, seed.sh, test.sh, setup_all.sh, reset_dev.sh
 docs/                   data dictionary, logical schema, normalization, integrity, security, indexes, versioning
 docker-compose.yml      PostgreSQL 16 + PostGIS for local work

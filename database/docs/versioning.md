@@ -9,6 +9,7 @@ V003__trips.sql                    trips, cost lines, refuel stops
 V004__functions_and_triggers.sql   business logic
 V005__views_and_indexes.sql        views, materialized view, masking views
 V006__security_rls_and_grants.sql  RLS policies, GRANTs, default privileges
+V007__refresh_token_functions.sql  refresh-token lookup for the back-end (SECURITY DEFINER)
 ```
 
 ## Rules

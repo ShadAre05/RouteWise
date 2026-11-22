@@ -252,4 +252,21 @@ BEGIN
                         'delete_account removes the user and all personal data (cascade)');
 END $$;
 
+-- =============================================================== 9. refresh-token functions (V007)
+DO $$
+DECLARE u uuid;
+BEGIN
+  u := register_user('token.owner@example.com', 'long enough pw', true);
+  INSERT INTO refresh_tokens(user_id, token_hash, expires_at) VALUES
+    (u, 'valid-hash', now() + interval '1 day'),
+    (u, 'old-hash', now() + interval '1 second');
+  UPDATE refresh_tokens SET created_at = now() - interval '1 day', expires_at = now() - interval '1 second' WHERE token_hash = 'old-hash';
+  SET LOCAL ROLE rw_app;
+  PERFORM rw_test.check(consume_refresh_token('valid-hash') = u, 'a valid refresh token is accepted and returns its user');
+  PERFORM rw_test.check(consume_refresh_token('valid-hash') IS NULL, 'a refresh token can be used only once (rotation)');
+  PERFORM rw_test.check(consume_refresh_token('old-hash') IS NULL, 'an expired refresh token is rejected');
+  PERFORM rw_test.check(consume_refresh_token('unknown') IS NULL, 'an unknown refresh token is rejected');
+  RESET ROLE;
+END $$;
+
 ROLLBACK;     -- nothing from the tests stays in the database

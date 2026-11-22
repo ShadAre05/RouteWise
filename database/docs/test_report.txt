@@ -92,6 +92,10 @@ ok: no full e-mail in the masked view
 ok: anonymized trips are readable for reporting
 ok: anonymized trips contain no user id, titles or place names
 ok: delete_account removes the user and all personal data (cascade)
+ok: a valid refresh token is accepted and returns its user
+ok: a refresh token can be used only once (rotation)
+ok: an expired refresh token is rejected
+ok: an unknown refresh token is rejected
 == login as the application role
 rw_app superuser: false
 ALL TESTS PASSED
