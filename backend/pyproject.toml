@@ -1,0 +1,31 @@
+[project]
+name = "routewise-backend"
+version = "1.0.0"
+description = "RouteWise back-end (FastAPI)"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["app"]
+branch = false
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["N817"]   # D = Decimal shorthand in numeric test data
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N"]
+ignore = [
+  "B008",  # FastAPI dependencies in default arguments are the framework's idiom
+  "N818",  # domain errors are named by meaning (NotFound, Conflict), not with an "Error" suffix
+]

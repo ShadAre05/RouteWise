@@ -1,0 +1,65 @@
+# Whole back-end stack: PostgreSQL+PostGIS, one-shot database setup, API (and optionally OSRM).
+#   cp .env.example .env   # set your own values
+#   docker compose up -d --build
+# API: http://localhost:8000/docs
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: ${PG_SUPERUSER}
+      POSTGRES_PASSWORD: ${PG_SUPERUSER_PASSWORD}
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_SUPERUSER}"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+  db-init:           # roles, extensions, migrations and reference data (idempotent: safe on every start)
+    image: postgres:16
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./database:/work:ro
+    working_dir: /work
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: ${PGDATABASE}
+      PG_SUPERUSER: ${PG_SUPERUSER}
+      PG_SUPERUSER_PASSWORD: ${PG_SUPERUSER_PASSWORD}
+      RW_OWNER_PASSWORD: ${RW_OWNER_PASSWORD}
+      RW_APP_PASSWORD: ${RW_APP_PASSWORD}
+      RW_REPORTING_PASSWORD: ${RW_REPORTING_PASSWORD}
+      RW_ADMIN_PASSWORD: ${RW_ADMIN_PASSWORD}
+    command: ["bash", "-c", "bash scripts/bootstrap.sh && bash scripts/migrate.sh && bash scripts/seed.sh"]
+    restart: "no"
+
+  api:
+    build: ./backend
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+psycopg://rw_app:${RW_APP_PASSWORD}@db:5432/${PGDATABASE}
+      JWT_SECRET: ${JWT_SECRET}
+      OSRM_BASE_URL: ${OSRM_BASE_URL}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    restart: unless-stopped
+
+  osrm:              # optional: docker compose --profile routing up -d   (needs prepared map data, see backend/README.md)
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    profiles: ["routing"]
+    command: osrm-routed --algorithm mld /data/region.osrm
+    volumes:
+      - ./osrm-data:/data:ro
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
+volumes:
+  pgdata:

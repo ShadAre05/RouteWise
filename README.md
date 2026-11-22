@@ -25,12 +25,20 @@ Everything on the server side runs in Docker Compose.
 ## Repository
 | Folder | What it is | Start here |
 |---|---|---|
-| [`database/`](database/) | PostgreSQL 16 + PostGIS: migrations, seeds, test data, 93 automated tests, data dictionary, logical schema, security, indexing and versioning documents | [`database/README.md`](database/README.md) |
+| [`database/`](database/) | PostgreSQL 16 + PostGIS: migrations, seeds, test data, 97 automated tests, data dictionary, logical schema, security, indexing and versioning documents | [`database/README.md`](database/README.md) |
+| [`backend/`](backend/) | FastAPI REST API: authentication, vehicles, trip cost calculation and history, OpenAPI documentation, unit and integration tests | [`backend/README.md`](backend/README.md) |
 
-Further parts (back-end, Android app, project documents) will be added as separate folders.
+Further parts (the Android app) will be added as separate folders.
+
+## Quick start (whole back-end stack)
+```bash
+cp .env.example .env              # put your own passwords and JWT_SECRET into .env (never commit it)
+docker compose up -d --build      # PostgreSQL + PostGIS, database setup, API
+```
+API documentation: `http://localhost:8000/docs`. Details: [`backend/README.md`](backend/README.md) and [`database/README.md`](database/README.md).
 
 ## Status
-The database layer is complete and tested. Other layers are in preparation.
+The database and the back-end are implemented and tested. The Android app is in preparation.
 
 ## Security note
-No keys or passwords are stored in this repository. Credentials are read from environment variables (see `database/.env.example`).
+No keys or passwords are stored in this repository. Credentials are read from environment variables (see `.env.example`, `backend/.env.example`, `database/.env.example`).
