@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 
 from app.api.error_handlers import register_error_handlers
 from app.api.routers import auth, health, reference, trips, vehicles
@@ -69,4 +70,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     for router in (auth.router, vehicles.router, trips.router, reference.router):
         app.include_router(router, prefix=API_PREFIX)
+    app.openapi = lambda: _openapi_with_unified_errors(app)
     return app
+
+
+def _openapi_with_unified_errors(app: FastAPI) -> dict:
+    """Document 422 in the same error format the API really returns (the framework default differs)."""
+    if app.openapi_schema:
+        return app.openapi_schema
+    schema = get_openapi(title=app.title, version=app.version, description=app.description, routes=app.routes)
+    error_ref = {"$ref": "#/components/schemas/ErrorResponse"}
+    for path_item in schema["paths"].values():
+        for operation in path_item.values():
+            response = operation.get("responses", {}).get("422")
+            if response is not None:
+                response["description"] = "Validation error"
+                response["content"] = {"application/json": {"schema": error_ref}}
+    components = schema.get("components", {}).get("schemas", {})
+    if "ErrorResponse" in components:
+        components.pop("HTTPValidationError", None)
+        components.pop("ValidationError", None)
+    app.openapi_schema = schema
+    return schema

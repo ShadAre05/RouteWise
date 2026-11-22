@@ -216,3 +216,11 @@ def test_openapi_documents_the_api(client):
     assert "ErrorResponse" in doc["components"]["schemas"]
     assert get_settings().jwt_algorithm == "HS256" and create_access_token  # settings load from the environment
     assert uuid.UUID(int=0) and UTC
+
+
+def test_openapi_documents_the_real_error_format(client):
+    schema = client.get("/openapi.json").json()
+    assert "HTTPValidationError" not in schema["components"]["schemas"]
+    ref = schema["paths"]["/api/v1/vehicles"]["post"]["responses"]["422"]["content"]["application/json"]["schema"]
+    assert ref == {"$ref": "#/components/schemas/ErrorResponse"}
+    assert "401" not in schema["paths"]["/api/v1/auth/register"]["post"]["responses"]

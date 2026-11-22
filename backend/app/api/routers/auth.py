@@ -19,7 +19,7 @@ def _tokens(pair: TokenPair) -> schemas.TokenResponse:
     response_model=schemas.TokenResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create an account",
-    responses={409: {"model": ErrorResponse}, **ERRORS},
+    responses={409: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
 )
 def register(body: schemas.RegisterRequest, service: AuthService = Depends(deps.auth_service)):
     return _tokens(service.register(body.email, body.password))
