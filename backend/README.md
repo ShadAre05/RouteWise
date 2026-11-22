@@ -128,5 +128,6 @@ Errors always look like `{"error": {"code": "not_found", "message": "...", "deta
 ## Known limitations (stated openly)
 - The routing engine is a separate service that needs map data; a hosted instance is not part of this repository.
 - Vignettes are charged once for every country the route enters (except with `no_tolls`); per-kilometre tolls use the kilometres on charged roads reported by OSRM and are shared between the countries that have a per-km tariff. The overnight stop city is not determined; lodging is priced in the destination country.
+- Fuel prices are not downloaded automatically: the database has the import procedures, but the bulletin downloader is not implemented, so prices come from the SQL seed and test-data files (`seed.sh --test-data` loads a 12-week synthetic history).
 - Administration of reference data (tariffs, lodging, speed profiles) is done in the database with the `rw_admin_user` role; there is no admin HTTP endpoint yet.
 - The Docker image, the compose stack and the CI workflow are written to run from a clean checkout, but were not executed on GitHub/Docker in the environment where this code was written; the application, the database scripts and all tests were run against a real PostgreSQL 16 + PostGIS.

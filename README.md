@@ -10,7 +10,7 @@
 - Saves every calculation to the trip history with a snapshot of the vehicle, so old trips never change.
 - Accounts with privacy-by-design: no coordinates are stored, the account and all its data can be deleted in the app.
 
-**Coverage:** Lithuania, Latvia, Estonia, Poland, Germany, Denmark, Czechia, Slovakia; passenger cars; petrol 95 and diesel. Fuel prices come from the EC Weekly Oil Bulletin (weekly import, history kept).
+**Coverage:** Lithuania, Latvia, Estonia, Poland, Germany, Denmark, Czechia, Slovakia; passenger cars; petrol 95 and diesel. Fuel prices are national weekly averages in the shape of the EC Weekly Oil Bulletin, with history kept. The database provides the import procedures (`import_fuel_price`, `finish_fuel_import`); the program that downloads the bulletin is not part of this repository yet, so the prices in the demo data are loaded from SQL files.
 
 ## Architecture
 ```
