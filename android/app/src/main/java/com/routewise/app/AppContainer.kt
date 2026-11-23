@@ -11,6 +11,9 @@ import com.routewise.app.data.AuthRepository
 import com.routewise.app.data.InMemoryTripCache
 import com.routewise.app.data.FileTripCache
 import com.routewise.app.data.ReferenceRepository
+import com.routewise.app.data.FakeWeatherSource
+import com.routewise.app.data.OpenMeteoWeather
+import com.routewise.app.data.WeatherSource
 import com.routewise.app.data.TripCache
 import com.routewise.app.data.TripCalculator
 import com.routewise.app.data.TripRepository
@@ -34,6 +37,7 @@ class AppContainer(
     val session: Session,
     val api: RouteWiseApi,
     val tripCache: TripCache = InMemoryTripCache(),
+    val weather: WeatherSource = FakeWeatherSource(),
 ) {
     val errors = ErrorHandler(logger)
     val notifier = Notifier()
@@ -61,7 +65,12 @@ class AppContainer(
                     .build()
                 HttpRouteWiseApi(BuildConfig.API_BASE_URL, client, session, logger)
             }
-            return AppContainer(logger, session, api, FileTripCache(java.io.File(context.filesDir, "trip_cache.json")))
+            val weatherClient = OkHttpClient.Builder().connectTimeout(5, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS).build()
+            return AppContainer(
+                logger, session, api,
+                FileTripCache(java.io.File(context.filesDir, "trip_cache.json")),
+                OpenMeteoWeather(weatherClient, logger),
+            )
         }
     }
 }

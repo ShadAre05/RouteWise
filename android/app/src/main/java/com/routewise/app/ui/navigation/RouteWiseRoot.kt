@@ -135,7 +135,7 @@ private fun MainApp(container: AppContainer) {
                 }
                 composable(Routes.BUDGET) {
                     val vm: BudgetViewModel = viewModel(factory = factoryOf {
-                        BudgetViewModel(container.calculator, container.errors, container.notifier, container.currentCalculation)
+                        BudgetViewModel(container.calculator, container.errors, container.notifier, container.currentCalculation, container.weather)
                     })
                     BudgetScreen(
                         vm,

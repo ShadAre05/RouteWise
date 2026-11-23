@@ -23,7 +23,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.routewise.app.domain.Stops
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.routewise.app.core.Messages
@@ -237,6 +242,41 @@ fun LodgingScreen(viewModel: LodgingViewModel) {
             "${trip.nights} night${if (trip.nights == 1) "" else "s"} on the way to ${TripText.routeTitle(trip).substringAfter("→ ")}",
             style = MaterialTheme.typography.titleMedium,
         )
+        val stop = Stops.firstStop(calculation!!.request, trip)
+        val uriHandler = LocalUriHandler.current
+        var linkFailed by remember { mutableStateOf(false) }
+        if (stop != null) {
+            SectionCard(Modifier.testTag("stop_card")) {
+                Text("☾ ${stop.place.label}", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "Night 1 of ${trip.nights} · after ${Formatting.duration(stop.afterMinutes)} of driving (about km ${stop.km})",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text("Check-in ${stop.checkIn.format(java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale.ENGLISH))} · check-out ${stop.checkOut.format(java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale.ENGLISH))}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("stop_dates"))
+                Text("The city is estimated on the straight line to the destination.", style = MaterialTheme.typography.bodySmall)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("Guests", style = MaterialTheme.typography.bodyLarge)
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    OutlinedButton(onClick = { viewModel.changeGuests(-1) }, modifier = Modifier.testTag("guests_minus")) { Text("−") }
+                    Text("${state.guests}", modifier = Modifier.padding(horizontal = 16.dp).testTag("guests"))
+                    OutlinedButton(onClick = { viewModel.changeGuests(1) }, modifier = Modifier.testTag("guests_plus")) { Text("+") }
+                }
+            }
+            OutlinedButton(
+                onClick = {
+                    try {
+                        uriHandler.openUri(Stops.bookingUrl(stop, state.guests))
+                        linkFailed = false
+                    } catch (e: Exception) {
+                        linkFailed = true
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().testTag("search_hotels"),
+            ) { Text("Search accommodation ↗") }
+            Text("Opens Booking.com in your browser with the city and dates. Nothing is booked in RouteWise.", style = MaterialTheme.typography.bodySmall)
+            if (linkFailed) InfoBanner("Could not open the browser. Copy the link instead:\n${Stops.bookingUrl(stop, state.guests)}", warning = true, tag = "link_failed")
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("economy" to "Economy", "standard" to "Standard", "comfort" to "Comfort").forEach { (value, label) ->
                 FilterChip(
@@ -267,6 +307,6 @@ fun LodgingScreen(viewModel: LodgingViewModel) {
         if (lodging?.status == "user_entered") {
             OutlinedButton(onClick = viewModel::useEstimate, modifier = Modifier.fillMaxWidth().testTag("use_estimate")) { Text("Use estimate again") }
         }
-        Text("Nothing is booked in RouteWise. Look for a place on the site you prefer and enter its price here.", style = MaterialTheme.typography.bodySmall)
+        Text("Enter the price you found for all nights; the total is calculated again.", style = MaterialTheme.typography.bodySmall)
     }
 }

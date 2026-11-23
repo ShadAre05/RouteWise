@@ -38,7 +38,9 @@ fun BudgetScreen(
 ) {
     val calculation by viewModel.calculation.collectAsState()
     val switching by viewModel.switching.collectAsState()
+    val weather by viewModel.weather.collectAsState()
     val current = calculation
+    androidx.compose.runtime.LaunchedEffect(current?.selected?.id) { viewModel.loadWeather() }
     if (current == null) {
         EmptyState("Nothing calculated yet", "Choose a start and a destination first.", "Plan a trip", onPlan)
         return
@@ -66,6 +68,10 @@ fun BudgetScreen(
                 TripText.kmByCountry(trip).takeIf { it.isNotEmpty() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
                 TripText.arrivalLine(trip)?.let { Text("🕑 $it", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("arrival")) }
                 TripText.lateArrivalNote(trip)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                weather?.let {
+                    Text("☁ $it", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("weather"))
+                    Text("Weather: Open-Meteo.com", style = MaterialTheme.typography.labelSmall)
+                }
                 if (TripText.isPriceOld(trip.priceDate, today)) {
                     InfoBanner(Messages.pricesOld(Formatting.date(trip.priceDate)), warning = true, tag = "prices_old")
                 } else {

@@ -20,7 +20,7 @@ Status of this document: it describes the code in this folder. Everything that i
 | 401 / 403 / 404 / 500 handling | `data/api/ApiException.kt` maps status and error code, `HttpRouteWiseApi` renews the token on 401 |
 | Typed API layer | `data/api/ApiModels.kt` (DTOs), `RouteWiseApi.kt` (interface), `HttpRouteWiseApi.kt` (HTTP) |
 | No tokens in code | Tokens are received at run time and kept in `EncryptedSharedPreferences` (`data/session/Session.kt`) |
-| Unit tests (>= 3 components) | `app/src/test/.../domain`, `.../data`, `.../ui` – 77 tests, see [Tests](#5-tests) |
+| Unit tests (>= 3 components) | `app/src/test/.../domain`, `.../data`, `.../ui` – 82 tests, see [Tests](#5-tests) |
 | UI / e2e tests | `app/src/test/.../ui/AppFlowTest.kt` – 2 tests with Compose test and Robolectric |
 
 ## 2. How to get and run the app
@@ -167,7 +167,8 @@ flowchart LR
    "✓ Cheapest"), distance and time, kilometres per country, arrival line with the check-in hint, the date of the
    fuel prices (a warning when older than 14 days), the badge "✓ Saved to History", one row per cost with its
    explanation ("150 km × 1.78 €/l", "Estimate", "EU average used (no price)", "no data") and the total. Switching
-   the chip changes the budget without a new calculation screen. Two rows lead on: **Route details** and, when the
+   the chip changes the budget without a new calculation screen. A line shows the weather at the destination on the
+   day of arrival (Open-Meteo, no key; hidden when there is no forecast, which reaches about 16 days ahead). Two rows lead on: **Route details** and, when the
    trip has overnight stops, **Overnight stop**.
 5a. **Route details (SCR-10).** Country, kilometres, average speed and motorway limit of the season
    (`GET /speed-profiles`); "No speed data for …" for a country the table does not know. Links to the refuel plan
@@ -178,7 +179,9 @@ flowchart LR
 5c. **Fuel price trend (SCR-12).** Chips for the countries of the route, a line of the weekly prices, the same values
    as text with the change against the previous week, "Only N weeks of prices are stored" and the source line
    (`GET /fuel-prices/{country}/trend`).
-5d. **Overnight stop (SCR-05).** Lodging class chips and the price the user found; the trip is calculated again
+5d. **Overnight stop (SCR-05).** Stop card with the estimated city, night number and dates, guests 1–8,
+   **Search accommodation ↗** (opens Booking.com in the browser with city, dates and guests; copy-link fallback),
+   lodging class chips and the price the user found; the trip is calculated again
    with it and the lodging row becomes "entered by you". "Use estimate again" restores the estimate. Prices are
    validated as in the specification.
 5. **History and trip detail (SCR-06).** Newest first; swipe a row to the left to delete (with confirmation and a
@@ -206,6 +209,7 @@ Run with `./gradlew testDebugUnitTest`. All tests run on the JVM; no emulator is
 | `ProfileViewModelTest` | password rules, wrong current password, delete with password | 7 |
 | `DetailsTextTest` | speed rows and limits, season, price trend rows and changes, lodging price rules | 8 |
 | `DetailsViewModelsTest` | lodging price entry and restore, trend load and empty history, route details, offline History from the cache | 8 |
+| `StopsWeatherTest` | overnight stop estimate and dates, hotel search link, weather response parsing and text | 5 |
 | `AppFlowTest` | UI: validation messages on the login screen. End to end: log in, plan Vilnius → Warsaw, see the total, the route chips and the saved badge | 2 |
 
 ## 6. Technology choices
@@ -225,13 +229,17 @@ Run with `./gradlew testDebugUnitTest`. All tests run on the JVM; no emulator is
 
 Deviations from the UX specification (`docs/RouteWise_UX_Design_Specification.pdf`):
 
-- **Not implemented:** the map (long-press, locate-me, "my location" prefill), the weather strip and SCR-09
-  *Reference data (admin)* (the API has no admin endpoints). Places are chosen from a built-in list of 23 cities in LT,
-  LV, EE, PL, DE, DK, CZ, SK (`domain/Places.kt`) plus three cities outside the area that exist to show the "outside
-  the supported countries" message. The API accepts any coordinates; only the picker is limited.
-- **Overnight stop (SCR-05):** the API does not return the city of the stop, so the screen shows the destination and
-  the number of nights, has no dates and guests fields and no "Search accommodation ↗" button. The user finds the
-  price on any site and enters it.
+- **Not implemented:** the map (long-press, locate-me, "my location" prefill) and SCR-09 *Reference data (admin)*
+  (the API has no admin endpoints). Places are chosen from a built-in list of 23 cities in LT, LV, EE, PL, DE, DK, CZ,
+  SK (`domain/Places.kt`) plus three cities outside the area that exist to show the "outside the supported countries"
+  message. The API accepts any coordinates; only the picker is limited.
+- **Weather:** the client calls Open-Meteo directly (the RouteWise API has no weather endpoint). A backend proxy would
+  be cleaner and is a future step. The service is free for non-commercial use and requires attribution, which the
+  budget shows. Without a forecast (offline, more than about 16 days ahead) the line is simply not shown.
+- **Overnight stop (SCR-05):** the API does not return the city of the stop, so it is estimated: the point where the
+  daily limit is reached on the straight line start → destination, and the nearest city of the built-in list. It can
+  differ from the real road. Only night 1 is offered for the search; Booking.com is opened with the city, dates
+  and guests, and the price is entered by the user.
 - **Route details (SCR-10):** the API returns the speed profile of the current season only; the season line is
   derived from today's date.
 - **Refuel plan (SCR-11):** the stops come from the API; the tank-size prompt of the specification is replaced by a

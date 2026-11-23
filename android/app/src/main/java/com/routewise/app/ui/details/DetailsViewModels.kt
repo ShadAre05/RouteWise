@@ -90,6 +90,7 @@ data class LodgingState(
     val price: String = "",
     val error: String? = null,
     val busy: Boolean = false,
+    val guests: Int = 1,
 )
 
 /** SCR-05: the lodging class and the price the user found; the trip is calculated again with it. */
@@ -102,6 +103,8 @@ class LodgingViewModel(
     private val _state = MutableStateFlow(LodgingState(lodgingClass = holder.value?.request?.lodgingClass ?: "standard"))
     val state: StateFlow<LodgingState> = _state
     val calculation: StateFlow<Calculation?> get() = holder
+
+    fun changeGuests(delta: Int) = _state.update { it.copy(guests = (it.guests + delta).coerceIn(1, 8)) }
 
     fun onPrice(value: String) = _state.update { it.copy(price = value, error = null) }
 
