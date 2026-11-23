@@ -36,6 +36,12 @@ class StopsWeatherTest {
         assertTrue(stop.place.countryCode in listOf("PL", "LT"))
     }
 
+    @Test fun vilniusWarsawWithFourHoursStopsNearBialystokNotInWarsaw() {
+        val warsaw = request.copy(destinationLabel = "Warsaw, Poland", destination = PointDto(21.0122, 52.2297), dailyLimitH = 4)
+        val stop = Stops.firstStop(warsaw, trip().copy(durationMin = 360, distanceKm = "390.0", dailyLimitH = "4.0"))!!
+        assertEquals("Bialystok", stop.place.name)
+    }
+
     @Test fun bookingLinkCarriesCityDatesAndGuests() {
         val stop = OvernightStop(Place("Warsaw", "PL", 21.0, 52.2), 640, 480, LocalDate.of(2026, 11, 11), LocalDate.of(2026, 11, 12))
         assertEquals(

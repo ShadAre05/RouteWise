@@ -20,7 +20,7 @@ Status of this document: it describes the code in this folder. Everything that i
 | 401 / 403 / 404 / 500 handling | `data/api/ApiException.kt` maps status and error code, `HttpRouteWiseApi` renews the token on 401 |
 | Typed API layer | `data/api/ApiModels.kt` (DTOs), `RouteWiseApi.kt` (interface), `HttpRouteWiseApi.kt` (HTTP) |
 | No tokens in code | Tokens are received at run time and kept in `EncryptedSharedPreferences` (`data/session/Session.kt`) |
-| Unit tests (>= 3 components) | `app/src/test/.../domain`, `.../data`, `.../ui` – 82 tests, see [Tests](#5-tests) |
+| Unit tests (>= 3 components) | `app/src/test/.../domain`, `.../data`, `.../ui` – 83 tests, see [Tests](#5-tests) |
 | UI / e2e tests | `app/src/test/.../ui/AppFlowTest.kt` – 2 tests with Compose test and Robolectric |
 
 ## 2. How to get and run the app
@@ -209,7 +209,7 @@ Run with `./gradlew testDebugUnitTest`. All tests run on the JVM; no emulator is
 | `ProfileViewModelTest` | password rules, wrong current password, delete with password | 7 |
 | `DetailsTextTest` | speed rows and limits, season, price trend rows and changes, lodging price rules | 8 |
 | `DetailsViewModelsTest` | lodging price entry and restore, trend load and empty history, route details, offline History from the cache | 8 |
-| `StopsWeatherTest` | overnight stop estimate and dates, hotel search link, weather response parsing and text | 5 |
+| `StopsWeatherTest` | overnight stop estimate and dates, hotel search link, weather response parsing and text | 6 |
 | `AppFlowTest` | UI: validation messages on the login screen. End to end: log in, plan Vilnius → Warsaw, see the total, the route chips and the saved badge | 2 |
 
 ## 6. Technology choices
@@ -230,7 +230,7 @@ Run with `./gradlew testDebugUnitTest`. All tests run on the JVM; no emulator is
 Deviations from the UX specification (`docs/RouteWise_UX_Design_Specification.pdf`):
 
 - **Not implemented:** the map (long-press, locate-me, "my location" prefill) and SCR-09 *Reference data (admin)*
-  (the API has no admin endpoints). Places are chosen from a built-in list of 23 cities in LT, LV, EE, PL, DE, DK, CZ,
+  (the API has no admin endpoints). Places are chosen from a built-in list of 45 cities and towns in LT, LV, EE, PL, DE, DK, CZ,
   SK (`domain/Places.kt`) plus three cities outside the area that exist to show the "outside the supported countries"
   message. The API accepts any coordinates; only the picker is limited.
 - **Weather:** the client calls Open-Meteo directly (the RouteWise API has no weather endpoint). A backend proxy would
