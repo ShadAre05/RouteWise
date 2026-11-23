@@ -43,9 +43,9 @@ fun ProfileScreen(viewModel: ProfileViewModel) {
             Text("Driver account", style = MaterialTheme.typography.bodyMedium)
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
             ProfileRow("Privacy notice", "What is stored and why", "privacy_row") { viewModel.showPrivacy(true) }
-            ProfileRow("Change password", "Update your sign-in password", "change_password_row", viewModel::openChange)
-            ProfileRow("Log out", null, "logout", viewModel::logout)
-            ProfileRow("Delete account", "Removes all your data", "delete_account", viewModel::openDelete, danger = true)
+            ProfileRow("Change password", "Update your sign-in password", "change_password_row", onClick = viewModel::openChange)
+            ProfileRow("Log out", null, "logout", onClick = viewModel::logout)
+            ProfileRow("Delete account", "Removes all your data", "delete_account", danger = true, onClick = viewModel::openDelete)
         }
     }
     if (s.showPrivacy) PrivacyDialog(onClose = { viewModel.showPrivacy(false) })
@@ -53,7 +53,7 @@ fun ProfileScreen(viewModel: ProfileViewModel) {
 }
 
 @Composable
-private fun ProfileRow(title: String, subtitle: String?, tag: String, onClick: () -> Unit, danger: Boolean = false) {
+private fun ProfileRow(title: String, subtitle: String?, tag: String, danger: Boolean = false, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 14.dp).testTag(tag),
         horizontalArrangement = Arrangement.SpaceBetween,

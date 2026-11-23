@@ -51,12 +51,14 @@ object TripText {
         return base + hint
     }
 
-    fun isLateArrival(trip: TripDto): Boolean =
-        try {
-            OffsetDateTime.parse(trip.arrivalAt ?: return false).hour >= 22
+    fun isLateArrival(trip: TripDto): Boolean {
+        val iso = trip.arrivalAt ?: return false
+        return try {
+            OffsetDateTime.parse(iso).hour >= 22
         } catch (e: DateTimeParseException) {
             false
         }
+    }
 
     fun lineTitle(line: CostLineDto, nights: Int): String {
         val place = Formatting.countryName(line.country)
