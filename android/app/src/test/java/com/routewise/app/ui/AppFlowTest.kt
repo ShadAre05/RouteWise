@@ -1,5 +1,6 @@
 package com.routewise.app.ui
 
+import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.ComposeTimeoutException
@@ -50,9 +51,10 @@ class AppFlowTest {
         rule.setContent { RouteWiseTheme { RouteWiseRoot(container) } }
         rule.onNodeWithTag("tab_login").performClick()
         rule.onNodeWithTag("email").performTextInput("not-an-email")
-        rule.onNodeWithTag("submit").performClick()
-        rule.onNodeWithText(Messages.EMAIL_INVALID).assertIsDisplayed()
-        rule.onNodeWithText("Enter your password").assertIsDisplayed()
+        // The button is below the visible area of the small test screen, so scroll to it first.
+        rule.onNodeWithTag("submit").performScrollTo().performClick()
+        rule.onNodeWithText(Messages.EMAIL_INVALID).assertExists()
+        rule.onNodeWithText("Enter your password").assertExists()
     }
 
     @Test fun userCanLogInPlanATripAndSeeTheTotal() {
@@ -62,7 +64,8 @@ class AppFlowTest {
         rule.onNodeWithTag("tab_login").performClick()
         rule.onNodeWithTag("email").performTextInput(FakeRouteWiseApi.DEMO_EMAIL)
         rule.onNodeWithTag("password").performTextInput(FakeRouteWiseApi.DEMO_PASSWORD)
-        rule.onNodeWithTag("submit").performClick()
+        // The button is below the visible area of the small test screen, so scroll to it first.
+        rule.onNodeWithTag("submit").performScrollTo().performClick()
         waitFor("calculate")
 
         rule.onNodeWithTag("origin").performTextInput("Vilnius")
