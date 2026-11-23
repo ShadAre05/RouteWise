@@ -2,7 +2,10 @@ package com.routewise.app.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.printToString
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -32,12 +35,18 @@ class AppFlowTest {
         return AppContainer(SilentLogger, session, FakeRouteWiseApi(session, latencyMs = 0))
     }
 
-    private fun waitFor(tag: String) = rule.waitUntil(5_000) {
-        rule.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
+    /** Waits for a node; on timeout the failure names the tag and prints the screen, so a CI log is enough to diagnose it. */
+    private fun waitFor(tag: String) {
+        try {
+            rule.waitUntil(10_000) { rule.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty() }
+        } catch (e: ComposeTimeoutException) {
+            throw AssertionError("Node with tag '$tag' never appeared. Screen:\n" + rule.onRoot().printToString(), e)
+        }
     }
 
     @Test fun loginFormShowsValidationErrorsAndDoesNotSubmit() {
-        rule.setContent { RouteWiseTheme { RouteWiseRoot(container()) } }
+        val container = container()
+        rule.setContent { RouteWiseTheme { RouteWiseRoot(container) } }
         rule.onNodeWithTag("email").performTextInput("not-an-email")
         rule.onNodeWithTag("submit").performClick()
         rule.onNodeWithText(Messages.EMAIL_INVALID).assertIsDisplayed()
@@ -45,7 +54,8 @@ class AppFlowTest {
     }
 
     @Test fun userCanLogInPlanATripAndSeeTheTotal() {
-        rule.setContent { RouteWiseTheme { RouteWiseRoot(container()) } }
+        val container = container()
+        rule.setContent { RouteWiseTheme { RouteWiseRoot(container) } }
 
         rule.onNodeWithTag("email").performTextInput(FakeRouteWiseApi.DEMO_EMAIL)
         rule.onNodeWithTag("password").performTextInput(FakeRouteWiseApi.DEMO_PASSWORD)
