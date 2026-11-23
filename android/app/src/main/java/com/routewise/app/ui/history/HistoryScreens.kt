@@ -47,10 +47,21 @@ import com.routewise.app.ui.components.SkeletonList
 fun HistoryScreen(viewModel: HistoryViewModel, onOpen: (String) -> Unit, onPlan: () -> Unit) {
     val list by viewModel.list.collectAsState()
     val toDelete by viewModel.toDelete.collectAsState()
+    val offline by viewModel.offline.collectAsState()
     LaunchedEffect(Unit) { viewModel.load() }
 
     Column(Modifier.fillMaxSize()) {
         Text("History", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(16.dp))
+        if (offline) {
+            InfoBanner(
+                com.routewise.app.core.Messages.OFFLINE_HISTORY,
+                modifier = Modifier.padding(horizontal = 16.dp),
+                warning = true,
+                actionLabel = "Try again",
+                onAction = viewModel::load,
+                tag = "offline_banner",
+            )
+        }
         when (val state = list) {
             Load.Loading -> SkeletonList()
             is Load.Failed -> ErrorState(state.message, viewModel::load)

@@ -20,4 +20,8 @@ interface RouteWiseApi {
     suspend fun listTrips(limit: Int, offset: Int): TripPageDto
     suspend fun getTrip(id: String): TripDto
     suspend fun deleteTrip(id: String)
+
+    /** Public reference data. */
+    suspend fun fuelTrend(country: String, fuelType: String): List<TrendPointDto>
+    suspend fun speedProfiles(): List<SpeedProfileDto>
 }

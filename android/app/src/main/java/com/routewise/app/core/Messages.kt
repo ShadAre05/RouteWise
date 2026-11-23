@@ -42,4 +42,12 @@ object Messages {
     fun passwordShort(length: Int) = "Use at least 10 characters (now $length)"
 
     fun noPlaces(query: String) = "No places found for “$query”. Check the spelling."
+
+    const val LODGING_AMOUNT = "Enter an amount greater than 0"
+    const val LODGING_DIGITS = "Use digits only, for example 61.00"
+    const val NO_PRICE_HISTORY = "No price history is stored for this country."
+    const val OFFLINE_HISTORY = "No connection. Showing the trips saved on this phone."
+
+    fun noSpeedData(country: String) = "No speed data for $country. The travel time of the routing engine is used."
+    fun fewWeeks(n: Int) = "Only $n weeks of prices are stored for this country."
 }

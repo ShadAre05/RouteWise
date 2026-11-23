@@ -28,6 +28,7 @@ Everything on the server side runs in Docker Compose.
 | [`database/`](database/) | PostgreSQL 16 + PostGIS: migrations, seeds, test data, 97 automated tests, data dictionary, logical schema, security, indexing and versioning documents | [`database/README.md`](database/README.md) |
 | [`backend/`](backend/) | FastAPI REST API: authentication, vehicles, trip cost calculation and history, OpenAPI documentation, unit and integration tests | [`backend/README.md`](backend/README.md) |
 | [`docs/api/`](docs/api/) | API documentation: OpenAPI 3.1 specification, Getting Started, integration tutorial, authentication, errors, architecture, changelog | [`docs/api/README.md`](docs/api/README.md) |
+| [`android/`](android/) | Android client (Kotlin, Jetpack Compose): trip planning, cost budget, history, vehicles, profile | [`android/README.md`](android/README.md) |
 
 Further parts (the Android app) will be added as separate folders.
 

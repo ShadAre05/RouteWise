@@ -4,6 +4,8 @@ import com.routewise.app.data.api.ApiErrorKind
 import com.routewise.app.data.api.ApiException
 import com.routewise.app.data.api.RouteWiseApi
 import com.routewise.app.data.api.TripDto
+import com.routewise.app.data.api.SpeedProfileDto
+import com.routewise.app.data.api.TrendPointDto
 import com.routewise.app.data.api.TripPageDto
 import com.routewise.app.data.api.VehicleDto
 import com.routewise.app.data.api.VehicleRequest
@@ -60,14 +62,32 @@ class VehicleRepository(private val api: RouteWiseApi) {
     suspend fun delete(id: String) = api.deleteVehicle(id)
 }
 
-class TripRepository(private val api: RouteWiseApi) {
-    suspend fun page(limit: Int = PAGE_SIZE, offset: Int = 0): TripPageDto = api.listTrips(limit, offset)
+class TripRepository(private val api: RouteWiseApi, private val cache: TripCache = InMemoryTripCache()) {
+    suspend fun page(limit: Int = PAGE_SIZE, offset: Int = 0): TripPageDto {
+        val page = api.listTrips(limit, offset)
+        if (offset == 0) cache.save(page.items)
+        return page
+    }
+
+    /** The trips stored by the last successful load, for the offline view of the history. */
+    fun cached(): List<TripDto> = cache.load()
 
     suspend fun get(id: String): TripDto = api.getTrip(id)
 
-    suspend fun delete(id: String) = api.deleteTrip(id)
+    suspend fun delete(id: String) {
+        api.deleteTrip(id)
+        cache.save(cache.load().filter { it.id != id })
+    }
 
     companion object {
         const val PAGE_SIZE = 50
     }
+}
+
+/** Public reference data: price trend and speed profiles. */
+class ReferenceRepository(private val api: RouteWiseApi) {
+    suspend fun fuelTrend(country: String, fuelType: String): List<TrendPointDto> =
+        api.fuelTrend(country, fuelType).sortedBy { it.bulletinDate }
+
+    suspend fun speedProfiles(): List<SpeedProfileDto> = api.speedProfiles()
 }

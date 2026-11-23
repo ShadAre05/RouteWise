@@ -60,7 +60,7 @@ data class Calculation(
  */
 class TripCalculator(private val api: RouteWiseApi, private val logger: Logger) {
 
-    suspend fun calculate(base: TripRequest): Calculation {
+    suspend fun calculate(base: TripRequest, keep: String = Calculation.FASTEST): Calculation {
         val outcomes = coroutineScope {
             VARIANTS.map { variant -> async { runCatching { api.createTrip(base.copy(variant = variant)) } } }.awaitAll()
         }
@@ -70,11 +70,24 @@ class TripCalculator(private val api: RouteWiseApi, private val logger: Logger) 
             trips.values.forEach { discard(it) }
             throw outcomes.firstNotNullOfOrNull { it.exceptionOrNull() } ?: IllegalStateException("no result")
         }
-        trips.filterKeys { it != Calculation.FASTEST }.values.forEach { discard(it) }
+        val chosen = trips[keep] ?: fastest
+        trips.values.filter { it !== chosen }.forEach { discard(it) }
         val unavailable = VARIANTS.zip(outcomes)
             .filter { (_, outcome) -> (outcome.exceptionOrNull() as? ApiException)?.kind == ApiErrorKind.NO_ROUTE }
             .map { it.first }.toSet()
-        return Calculation(base, fastest, trips.mapValues { (_, trip) -> summaryOf(trip) }, unavailable)
+        return Calculation(base, chosen, trips.mapValues { (_, trip) -> summaryOf(trip) }, unavailable)
+    }
+
+    /**
+     * Lodging price entry (SCR-05): the same trip is calculated again with the chosen class or with the price the
+     * user found, keeping the selected route. The earlier history entry is replaced, so History still shows one entry.
+     */
+    suspend fun withLodging(current: Calculation, lodgingClass: String, enteredEur: String?): Calculation {
+        val request = current.request.copy(lodgingClass = lodgingClass, lodgingEnteredEur = enteredEur)
+        val old = current.selected
+        val fresh = calculate(request, keep = old.variant)
+        discard(old)
+        return fresh
     }
 
     /** Saves the chosen route as the entry of the history and removes the previous one. */

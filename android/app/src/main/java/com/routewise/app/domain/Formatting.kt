@@ -43,7 +43,12 @@ object Formatting {
         return "$sign${kotlin.math.abs(delta)} min"
     }
 
-    fun date(iso: String?): String = parse(iso)?.format(dateFormat) ?: "-"
+    fun date(iso: String?): String =
+        parse(iso)?.format(dateFormat) ?: try {
+            java.time.LocalDate.parse(iso?.take(10) ?: "").format(dateFormat)
+        } catch (e: java.time.format.DateTimeParseException) {
+            "-"
+        }
 
     fun dateTime(iso: String?): String = parse(iso)?.format(timeFormat) ?: "-"
 

@@ -20,7 +20,7 @@ Status of this document: it describes the code in this folder. Everything that i
 | 401 / 403 / 404 / 500 handling | `data/api/ApiException.kt` maps status and error code, `HttpRouteWiseApi` renews the token on 401 |
 | Typed API layer | `data/api/ApiModels.kt` (DTOs), `RouteWiseApi.kt` (interface), `HttpRouteWiseApi.kt` (HTTP) |
 | No tokens in code | Tokens are received at run time and kept in `EncryptedSharedPreferences` (`data/session/Session.kt`) |
-| Unit tests (>= 3 components) | `app/src/test/.../domain`, `.../data`, `.../ui` – 61 tests, see [Tests](#5-tests) |
+| Unit tests (>= 3 components) | `app/src/test/.../domain`, `.../data`, `.../ui` – 77 tests, see [Tests](#5-tests) |
 | UI / e2e tests | `app/src/test/.../ui/AppFlowTest.kt` – 2 tests with Compose test and Robolectric |
 
 ## 2. How to get and run the app
@@ -167,7 +167,20 @@ flowchart LR
    "✓ Cheapest"), distance and time, kilometres per country, arrival line with the check-in hint, the date of the
    fuel prices (a warning when older than 14 days), the badge "✓ Saved to History", one row per cost with its
    explanation ("150 km × 1.78 €/l", "Estimate", "EU average used (no price)", "no data") and the total. Switching
-   the chip changes the budget without a new calculation screen.
+   the chip changes the budget without a new calculation screen. Two rows lead on: **Route details** and, when the
+   trip has overnight stops, **Overnight stop**.
+5a. **Route details (SCR-10).** Country, kilometres, average speed and motorway limit of the season
+   (`GET /speed-profiles`); "No speed data for …" for a country the table does not know. Links to the refuel plan
+   and the price trend.
+5b. **Refuel plan (SCR-11).** Start, each stop with country, kilometre, litres and price, arrival, and the saving
+   against refuelling in one country. Shown when the trip was planned with a start fuel level (the API returns the
+   stops); otherwise it says how to get one.
+5c. **Fuel price trend (SCR-12).** Chips for the countries of the route, a line of the weekly prices, the same values
+   as text with the change against the previous week, "Only N weeks of prices are stored" and the source line
+   (`GET /fuel-prices/{country}/trend`).
+5d. **Overnight stop (SCR-05).** Lodging class chips and the price the user found; the trip is calculated again
+   with it and the lodging row becomes "entered by you". "Use estimate again" restores the estimate. Prices are
+   validated as in the specification.
 5. **History and trip detail (SCR-06).** Newest first; swipe a row to the left to delete (with confirmation and a
    "Trip deleted" snackbar); the detail shows the stored breakdown, the price date, the car and a **Delete trip**
    button for users who do not swipe.
@@ -191,6 +204,8 @@ Run with `./gradlew testDebugUnitTest`. All tests run on the JVM; no emulator is
 | `VehiclesViewModelTest` | list, invalid form, add, delete with confirmation | 4 |
 | `PlanViewModelTest` | disabled Calculate with a reason, unsupported place, search rules, limit stepper, fuel at start, result | 6 |
 | `ProfileViewModelTest` | password rules, wrong current password, delete with password | 7 |
+| `DetailsTextTest` | speed rows and limits, season, price trend rows and changes, lodging price rules | 8 |
+| `DetailsViewModelsTest` | lodging price entry and restore, trend load and empty history, route details, offline History from the cache | 8 |
 | `AppFlowTest` | UI: validation messages on the login screen. End to end: log in, plan Vilnius → Warsaw, see the total, the route chips and the saved badge | 2 |
 
 ## 6. Technology choices
@@ -210,14 +225,19 @@ Run with `./gradlew testDebugUnitTest`. All tests run on the JVM; no emulator is
 
 Deviations from the UX specification (`docs/RouteWise_UX_Design_Specification.pdf`):
 
-- **Not implemented:** the map (long-press, locate-me, "my location" prefill), the weather strip, SCR-05 *Overnight
-  stop and lodging*, SCR-09 *Reference data (admin)*, SCR-10 *Route details*, SCR-11 *Refuel plan* as a screen, and
-  SCR-12 *Fuel price trend*. Places are chosen from a built-in list of 23 cities in LT, LV, EE, PL, DE, DK, CZ, SK
-  (`domain/Places.kt`) plus three cities outside the area that exist to show the "outside the supported countries"
-  message. The API accepts any coordinates; only the picker is limited. The refuel plan returned by the API is shown
-  as a simple list on the budget.
-- **Offline state with saved data** (a cached History) is not implemented; without a connection the screens show the
-  "No connection" state with **Try again**.
+- **Not implemented:** the map (long-press, locate-me, "my location" prefill), the weather strip and SCR-09
+  *Reference data (admin)* (the API has no admin endpoints). Places are chosen from a built-in list of 23 cities in LT,
+  LV, EE, PL, DE, DK, CZ, SK (`domain/Places.kt`) plus three cities outside the area that exist to show the "outside
+  the supported countries" message. The API accepts any coordinates; only the picker is limited.
+- **Overnight stop (SCR-05):** the API does not return the city of the stop, so the screen shows the destination and
+  the number of nights, has no dates and guests fields and no "Search accommodation ↗" button. The user finds the
+  price on any site and enters it.
+- **Route details (SCR-10):** the API returns the speed profile of the current season only; the season line is
+  derived from today's date.
+- **Refuel plan (SCR-11):** the stops come from the API; the tank-size prompt of the specification is replaced by a
+  note, because the client cannot tell from the response why no plan was made.
+- **Offline History (SCR-06):** the last loaded list is kept in a private file and shown with a banner when the
+  network is unreachable; it is deleted at sign-out. Other screens show "No connection" with **Try again**.
 - **Login block after 5 failed attempts:** the API answers a blocked login with the same `401 unauthorized` as a wrong
   password, so the client cannot show "Login is blocked for 10 minutes. Try again at 09:51". It shows the neutral
   wrong-credentials message.

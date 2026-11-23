@@ -153,6 +153,24 @@ class FakeRouteWiseApi(
         if (!trips.removeAll { it.id == id }) throw ApiException(ApiErrorKind.NOT_FOUND, "trip not found")
     }
 
+    override suspend fun fuelTrend(country: String, fuelType: String): List<TrendPointDto> {
+        pause()
+        val base = PETROL[country.uppercase()]?.toBigDecimalOrNull() ?: throw ApiException(ApiErrorKind.NOT_FOUND, "no price history")
+        val shift = if (fuelType == "diesel") BigDecimal("0.060") else BigDecimal.ZERO
+        val last = java.time.LocalDate.parse(DEMO_PRICE_DATE)
+        return (11 downTo 0).map { weeksAgo ->
+            val wiggle = BigDecimal(((11 - weeksAgo) * 7 % 5) - 2).multiply(BigDecimal("0.006"))
+            TrendPointDto(last.minusWeeks(weeksAgo.toLong()).toString(), (base + shift + wiggle).setScale(3).toPlainString())
+        }
+    }
+
+    override suspend fun speedProfiles(): List<SpeedProfileDto> {
+        pause()
+        return SPEEDS.map { (country, v) ->
+            SpeedProfileDto(country, "winter", v.first, v.second, if (v.second == null) "no general limit, advised 130" else null)
+        }
+    }
+
     // ---- helpers --------------------------------------------------------------------------------------------
 
     private suspend fun pause() {
@@ -215,6 +233,13 @@ class FakeRouteWiseApi(
         }
         val total = lines.fold(BigDecimal.ZERO) { sum, line -> sum + BigDecimal(line.amountEur ?: "0") }
         val start = now()
+        // Demo refuel plan: one stop in the cheaper country of the route, only when the start fuel level was given.
+        val stops = if (request.startFuel != null && countries.size > 1) {
+            val cheaper = countries.minByOrNull { fuelPrice(it, vehicle.fuelType) } ?: from
+            listOf(RefuelStopDto(1, cheaper, (distance / 2).toBigDecimal().setScale(0, RoundingMode.HALF_UP).toPlainString(), "30.0", fuelPrice(cheaper, vehicle.fuelType).toPlainString()))
+        } else {
+            null
+        }
         return TripDto(
             id = newId(),
             title = "${request.originLabel} - ${request.destinationLabel}",
@@ -232,12 +257,12 @@ class FakeRouteWiseApi(
             fuelType = vehicle.fuelType,
             consumptionL100 = vehicle.consumptionL100,
             startFuel = request.startFuel,
-            refuelSavingEur = null,
+            refuelSavingEur = stops?.let { "2.40" },
             priceDate = DEMO_PRICE_DATE,
             totalEur = total.setScale(2, RoundingMode.HALF_UP).toPlainString(),
             createdAt = start.toString(),
             lines = lines,
-            refuelStops = emptyList(),
+            refuelStops = stops.orEmpty(),
         )
     }
 
@@ -264,6 +289,10 @@ class FakeRouteWiseApi(
         private val PETROL = mapOf(
             "LT" to "1.554", "LV" to "1.520", "EE" to "1.580", "PL" to "1.400",
             "DE" to "1.712", "DK" to "1.854", "CZ" to "1.476", "SK" to "1.620",
+        )
+        private val SPEEDS = mapOf<String, Pair<String, Int?>>(
+            "LT" to ("85.0" to 110), "LV" to ("82.0" to 110), "EE" to ("80.0" to 110), "PL" to ("92.0" to 140),
+            "DE" to ("103.0" to null), "DK" to ("98.0" to 130), "CZ" to ("84.0" to 130),
         )
         private val VIGNETTES = mapOf("CZ" to "13.50", "SK" to "12.00")
         private val LODGING = mapOf(

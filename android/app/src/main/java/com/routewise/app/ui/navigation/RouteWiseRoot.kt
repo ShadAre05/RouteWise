@@ -47,6 +47,13 @@ import com.routewise.app.ui.plan.PlanScreen
 import com.routewise.app.ui.plan.PlanViewModel
 import com.routewise.app.ui.profile.ProfileScreen
 import com.routewise.app.ui.profile.ProfileViewModel
+import com.routewise.app.ui.details.FuelTrendScreen
+import com.routewise.app.ui.details.FuelTrendViewModel
+import com.routewise.app.ui.details.LodgingScreen
+import com.routewise.app.ui.details.LodgingViewModel
+import com.routewise.app.ui.details.RefuelPlanScreen
+import com.routewise.app.ui.details.RouteDetailsScreen
+import com.routewise.app.ui.details.RouteDetailsViewModel
 import com.routewise.app.ui.vehicles.VehiclesScreen
 import com.routewise.app.ui.vehicles.VehiclesViewModel
 
@@ -57,6 +64,10 @@ object Routes {
     const val PROFILE = "profile"
     const val BUDGET = "budget"
     const val TRIP = "trip/{id}"
+    const val DETAILS = "details"
+    const val REFUEL = "refuel"
+    const val TREND = "trend"
+    const val LODGING = "lodging"
     fun trip(id: String) = "trip/$id"
 }
 
@@ -83,7 +94,10 @@ fun RouteWiseRoot(container: AppContainer) {
     val tokens by container.session.tokens.collectAsState()
     val expired by container.session.expired.collectAsState()
     LaunchedEffect(tokens == null) {
-        if (tokens == null) container.currentCalculation.value = null
+        if (tokens == null) {
+            container.currentCalculation.value = null
+            container.tripCache.clear()
+        }
     }
 
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
@@ -123,7 +137,34 @@ private fun MainApp(container: AppContainer) {
                     val vm: BudgetViewModel = viewModel(factory = factoryOf {
                         BudgetViewModel(container.calculator, container.errors, container.notifier, container.currentCalculation)
                     })
-                    BudgetScreen(vm, onPlan = { nav.popBackStack() })
+                    BudgetScreen(
+                        vm,
+                        onPlan = { nav.popBackStack() },
+                        onDetails = { nav.navigate(Routes.DETAILS) },
+                        onLodging = { nav.navigate(Routes.LODGING) },
+                    )
+                }
+                composable(Routes.DETAILS) {
+                    val vm: RouteDetailsViewModel = viewModel(factory = factoryOf {
+                        RouteDetailsViewModel(container.currentCalculation, container.reference, container.errors)
+                    })
+                    RouteDetailsScreen(vm, onRefuel = { nav.navigate(Routes.REFUEL) }, onTrend = { nav.navigate(Routes.TREND) })
+                }
+                composable(Routes.REFUEL) {
+                    val calculation by container.currentCalculation.collectAsState()
+                    RefuelPlanScreen(calculation, onAddFuelLevel = { nav.popBackStack(Routes.PLAN, false) })
+                }
+                composable(Routes.TREND) {
+                    val vm: FuelTrendViewModel = viewModel(factory = factoryOf {
+                        FuelTrendViewModel(container.currentCalculation, container.reference, container.errors)
+                    })
+                    FuelTrendScreen(vm)
+                }
+                composable(Routes.LODGING) {
+                    val vm: LodgingViewModel = viewModel(factory = factoryOf {
+                        LodgingViewModel(container.calculator, container.currentCalculation, container.errors, container.notifier)
+                    })
+                    LodgingScreen(vm)
                 }
                 composable(Routes.VEHICLES) {
                     val vm: VehiclesViewModel = viewModel(factory = factoryOf {

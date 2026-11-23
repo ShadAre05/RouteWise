@@ -116,6 +116,21 @@ data class TripDto(
 data class TripPageDto(val items: List<TripDto>, val total: Int, val limit: Int, val offset: Int)
 
 @Serializable
+data class TrendPointDto(
+    @SerialName("bulletin_date") val bulletinDate: String,
+    @SerialName("price_eur_l") val priceEurL: String,
+)
+
+@Serializable
+data class SpeedProfileDto(
+    val country: String,
+    val season: String = "",
+    @SerialName("avg_speed_kmh") val avgSpeedKmh: String? = null,
+    @SerialName("motorway_limit_kmh") val motorwayLimitKmh: Int? = null,
+    @SerialName("limit_note") val limitNote: String? = null,
+)
+
+@Serializable
 data class ErrorEnvelope(val error: ErrorBodyDto)
 
 @Serializable

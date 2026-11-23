@@ -92,6 +92,13 @@ class HttpRouteWiseApi(
         call("DELETE", "trips/$id", null, true)
     }
 
+    // ---- reference data (public, no token) ------------------------------------------------------------------
+
+    override suspend fun fuelTrend(country: String, fuelType: String): List<TrendPointDto> =
+        decode(call("GET", "fuel-prices/$country/trend?fuel_type=$fuelType", null, false))
+
+    override suspend fun speedProfiles(): List<SpeedProfileDto> = decode(call("GET", "speed-profiles", null, false))
+
     // ---- transport ------------------------------------------------------------------------------------------
 
     /** Sends the request; on 401 renews the tokens once and repeats it. Throws [ApiException] unless 2xx. */

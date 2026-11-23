@@ -22,13 +22,20 @@ import com.routewise.app.core.Messages
 import com.routewise.app.data.Calculation
 import com.routewise.app.domain.Formatting
 import com.routewise.app.domain.TripText
+import com.routewise.app.ui.details.NavRow
 import com.routewise.app.ui.components.EmptyState
 import com.routewise.app.ui.components.InfoBanner
 import com.routewise.app.ui.components.SkeletonBox
 import java.time.LocalDate
 
 @Composable
-fun BudgetScreen(viewModel: BudgetViewModel, onPlan: () -> Unit, today: LocalDate = LocalDate.now()) {
+fun BudgetScreen(
+    viewModel: BudgetViewModel,
+    onPlan: () -> Unit,
+    onDetails: () -> Unit = {},
+    onLodging: () -> Unit = {},
+    today: LocalDate = LocalDate.now(),
+) {
     val calculation by viewModel.calculation.collectAsState()
     val switching by viewModel.switching.collectAsState()
     val current = calculation
@@ -67,6 +74,8 @@ fun BudgetScreen(viewModel: BudgetViewModel, onPlan: () -> Unit, today: LocalDat
                 Text("✓ Saved to History", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("saved_badge"))
                 CostCard(trip)
                 RefuelCard(trip)
+                NavRow("Route details", "Speed and limit of each country", "open_details", onDetails)
+                if (trip.nights > 0) NavRow("Overnight stop", "Choose a lodging class or enter the price you found", "open_lodging", onLodging)
             }
         }
     }

@@ -8,6 +8,10 @@ import com.routewise.app.core.Notifier
 import com.routewise.app.data.Calculation
 import kotlinx.coroutines.flow.MutableStateFlow
 import com.routewise.app.data.AuthRepository
+import com.routewise.app.data.InMemoryTripCache
+import com.routewise.app.data.FileTripCache
+import com.routewise.app.data.ReferenceRepository
+import com.routewise.app.data.TripCache
 import com.routewise.app.data.TripCalculator
 import com.routewise.app.data.TripRepository
 import com.routewise.app.data.VehicleRepository
@@ -29,6 +33,7 @@ class AppContainer(
     val logger: Logger,
     val session: Session,
     val api: RouteWiseApi,
+    val tripCache: TripCache = InMemoryTripCache(),
 ) {
     val errors = ErrorHandler(logger)
     val notifier = Notifier()
@@ -38,7 +43,8 @@ class AppContainer(
 
     val auth = AuthRepository(api, session)
     val vehicles = VehicleRepository(api)
-    val trips = TripRepository(api)
+    val trips = TripRepository(api, tripCache)
+    val reference = ReferenceRepository(api)
     val calculator = TripCalculator(api, logger)
 
     companion object {
@@ -55,7 +61,7 @@ class AppContainer(
                     .build()
                 HttpRouteWiseApi(BuildConfig.API_BASE_URL, client, session, logger)
             }
-            return AppContainer(logger, session, api)
+            return AppContainer(logger, session, api, FileTripCache(java.io.File(context.filesDir, "trip_cache.json")))
         }
     }
 }

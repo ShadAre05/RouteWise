@@ -56,4 +56,19 @@ object Validators {
         if (!Regex("^\\d+(\\.\\d+)?$").matches(text)) return null
         return text.toBigDecimalOrNull()
     }
+
+    private val AMOUNT = Regex("^\\d{1,5}([.,]\\d{1,2})?$")
+
+    /** Lodging price entered by the user: greater than 0, at most 2 decimals, at most 5 digits before the point. */
+    fun lodgingPrice(value: String): String? {
+        val text = value.trim()
+        if (!AMOUNT.matches(text)) {
+            return if (text.all { it.isDigit() || it == '.' || it == ',' } && text.count { it == '.' || it == ',' } <= 1) {
+                Messages.LODGING_AMOUNT
+            } else {
+                Messages.LODGING_DIGITS
+            }
+        }
+        return if (BigDecimal(text.replace(',', '.')).signum() > 0) null else Messages.LODGING_AMOUNT
+    }
 }
