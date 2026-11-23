@@ -4,6 +4,11 @@ REST API of RouteWise (FastAPI + SQLAlchemy 2 + PostgreSQL/PostGIS). It authenti
 
 Interactive API documentation (OpenAPI / Swagger UI) is served by the application itself at **`/docs`** (ReDoc at `/redoc`, raw schema at `/openapi.json`).
 
+## Tested with
+- Python 3.13 (Docker image `python:3.13-slim`)
+- PostgreSQL 16 with PostGIS 3 (image `postgis/postgis:16-3.4`)
+- Docker 29 with Compose v2
+
 The full API documentation (specification file, getting started, tutorial, authentication, errors, architecture) is in [`../docs/api/`](../docs/api/README.md). The file `docs/api/openapi.yaml` is generated from the code with `python scripts/export_openapi.py`; a unit test and the CI pipeline fail when it is out of date.
 
 ## Where each requirement is met
