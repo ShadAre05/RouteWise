@@ -27,8 +27,16 @@ jobs:
       - name: Make the Gradle wrapper executable
         run: chmod +x gradlew
 
+      # Robolectric downloads an Android image from Maven Central on first use; Maven Central sometimes answers
+      # 429 (rate limit). The image is cached between runs, and the test step is tried twice.
+      - name: Cache the Robolectric Android image
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-android-14-${{ hashFiles('android/app/build.gradle.kts') }}
+
       - name: Unit and UI tests
-        run: ./gradlew testDebugUnitTest --stacktrace
+        run: ./gradlew testDebugUnitTest --stacktrace || (sleep 20 && ./gradlew testDebugUnitTest --stacktrace)
 
       - name: Build the debug APK (demo mode, no server needed)
         run: ./gradlew assembleDebug --stacktrace
