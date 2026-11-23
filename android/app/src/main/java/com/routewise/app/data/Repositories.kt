@@ -1,5 +1,7 @@
 package com.routewise.app.data
 
+import com.routewise.app.data.api.ApiErrorKind
+import com.routewise.app.data.api.ApiException
 import com.routewise.app.data.api.RouteWiseApi
 import com.routewise.app.data.api.TripDto
 import com.routewise.app.data.api.TripPageDto
@@ -11,12 +13,12 @@ import com.routewise.app.data.session.Tokens
 class AuthRepository(private val api: RouteWiseApi, private val session: Session) {
     suspend fun register(email: String, password: String) {
         val tokens = api.register(email.trim(), password)
-        session.update(Tokens(tokens.accessToken, tokens.refreshToken))
+        session.update(Tokens(tokens.accessToken, tokens.refreshToken, email.trim()))
     }
 
     suspend fun login(email: String, password: String) {
         val tokens = api.login(email.trim(), password)
-        session.update(Tokens(tokens.accessToken, tokens.refreshToken))
+        session.update(Tokens(tokens.accessToken, tokens.refreshToken, email.trim()))
     }
 
     /** Signs out even when the server cannot be reached: the local tokens are always removed. */
@@ -31,10 +33,19 @@ class AuthRepository(private val api: RouteWiseApi, private val session: Session
     suspend fun changePassword(oldPassword: String, newPassword: String) =
         api.changePassword(oldPassword, newPassword)
 
-    suspend fun deleteAccount() {
+    /**
+     * Deleting an account asks for the password (UX SCR-07). The API needs only the bearer token, so the client
+     * proves the password by signing in once more; a wrong password throws and nothing is deleted.
+     */
+    suspend fun deleteAccount(password: String) {
+        val email = session.current?.email ?: throw ApiException(ApiErrorKind.UNAUTHORIZED)
+        val tokens = api.login(email, password)
+        session.update(Tokens(tokens.accessToken, tokens.refreshToken, email))
         api.deleteAccount()
         session.clear()
     }
+
+    val email: String? get() = session.current?.email
 }
 
 class VehicleRepository(private val api: RouteWiseApi) {

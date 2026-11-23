@@ -22,6 +22,10 @@ data class VehicleForm(
     val fuelType: String = "petrol95",
     val consumption: String = "",
     val tank: String = "",
+    val isDefault: Boolean = false,
+    /** True when this is the user's first car: the form explains why a car is needed and returns to Plan. */
+    val first: Boolean = false,
+    val banner: String? = null,
     val nameError: String? = null,
     val consumptionError: String? = null,
     val tankError: String? = null,
@@ -64,7 +68,8 @@ class VehiclesViewModel(
     // ---- form -----------------------------------------------------------------------------------------------
 
     fun startAdd() {
-        _form.value = VehicleForm()
+        val first = (_list.value as? Load.Ready)?.data.orEmpty().isEmpty()
+        _form.value = VehicleForm(isDefault = first, first = first)
     }
 
     fun startEdit(vehicle: VehicleDto) {
@@ -74,6 +79,7 @@ class VehiclesViewModel(
             fuelType = vehicle.fuelType,
             consumption = vehicle.consumptionL100,
             tank = vehicle.tankL.orEmpty(),
+            isDefault = vehicle.isDefault,
         )
     }
 
@@ -81,19 +87,28 @@ class VehiclesViewModel(
         _form.value = null
     }
 
-    fun onName(value: String) = _form.update { it?.copy(name = value, nameError = null) }
+    fun onName(value: String) = _form.update { it?.copy(name = value, nameError = null, banner = null) }
+    fun onDefault(value: Boolean) = _form.update { it?.copy(isDefault = value) }
+    fun onNameBlur() = _form.update { f -> f?.copy(nameError = if (f.name.isEmpty()) null else Validators.vehicleName(f.name)) }
+    fun onConsumptionBlur() = _form.update { f -> f?.copy(consumptionError = if (f.consumption.isEmpty()) null else Validators.consumption(f.consumption)) }
+    fun onTankBlur() = _form.update { f -> f?.copy(tankError = if (f.tank.isBlank()) null else Validators.tank(f.tank)) }
     fun onFuel(value: String) = _form.update { it?.copy(fuelType = value) }
-    fun onConsumption(value: String) = _form.update { it?.copy(consumption = value, consumptionError = null) }
-    fun onTank(value: String) = _form.update { it?.copy(tank = value, tankError = null) }
+    fun onConsumption(value: String) = _form.update { it?.copy(consumption = value, consumptionError = null, banner = null) }
+    fun onTank(value: String) = _form.update { it?.copy(tank = value, tankError = null, banner = null) }
 
-    fun save() {
+    /** Saves the form. [onFirstCarSaved] runs after the first car was saved: the app then returns to Plan. */
+    fun save(onFirstCarSaved: () -> Unit = {}) {
         val f = _form.value ?: return
         if (f.saving) return
         val nameError = Validators.vehicleName(f.name)
         val consumptionError = Validators.consumption(f.consumption)
         val tankError = if (f.tank.isBlank()) null else Validators.tank(f.tank)
         if (nameError != null || consumptionError != null || tankError != null) {
-            _form.value = f.copy(nameError = nameError, consumptionError = consumptionError, tankError = tankError)
+            val count = listOfNotNull(nameError, consumptionError, tankError).size
+            _form.value = f.copy(
+                nameError = nameError, consumptionError = consumptionError, tankError = tankError,
+                banner = Messages.carNotSaved(count),
+            )
             return
         }
         val request = VehicleRequest(
@@ -101,6 +116,7 @@ class VehiclesViewModel(
             fuelType = f.fuelType,
             consumptionL100 = Validators.parseDecimal(f.consumption)!!.toPlainString(),
             tankL = if (f.tank.isBlank()) null else Validators.parseDecimal(f.tank)!!.toPlainString(),
+            isDefault = f.isDefault,
         )
         _form.value = f.copy(saving = true)
         viewModelScope.launch {
@@ -108,11 +124,12 @@ class VehiclesViewModel(
                 if (f.id == null) repository.add(request) else repository.update(f.id, request)
                 _form.value = null
                 refreshQuietly()
+                if (f.first) onFirstCarSaved()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 _form.update { it?.copy(saving = false) }
-                notifier.show(errors.messageFor(e))
+                notifier.show(if (e is com.routewise.app.data.api.ApiException && e.kind == com.routewise.app.data.api.ApiErrorKind.NETWORK) Messages.SAVE_FAILED else errors.messageFor(e))
             }
         }
     }
@@ -125,6 +142,12 @@ class VehiclesViewModel(
         _toDelete.value = vehicle
     }
 
+    /** Delete from the edit form. */
+    fun askDeleteFromForm() {
+        val id = _form.value?.id ?: return
+        (_list.value as? Load.Ready)?.data?.firstOrNull { it.id == id }?.let { _toDelete.value = it }
+    }
+
     fun cancelDelete() {
         _toDelete.value = null
     }
@@ -132,6 +155,7 @@ class VehiclesViewModel(
     fun confirmDelete() {
         val vehicle = _toDelete.value ?: return
         _toDelete.value = null
+        _form.value = null
         perform { repository.delete(vehicle.id) }
     }
 

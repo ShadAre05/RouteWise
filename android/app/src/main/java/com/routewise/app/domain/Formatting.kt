@@ -21,6 +21,12 @@ object Formatting {
         return sign + eur(delta.abs().toPlainString())
     }
 
+    /** Difference of two totals as in the route chips: "−8.32" (the unit is clear from the total next to it). */
+    fun signedAmount(delta: BigDecimal): String {
+        val sign = if (delta.signum() > 0) "+" else if (delta.signum() < 0) "−" else ""
+        return sign + String.format(Locale.ENGLISH, "%,.2f", delta.abs().setScale(2, RoundingMode.HALF_UP))
+    }
+
     fun km(distance: String?): String {
         val value = distance?.toBigDecimalOrNull() ?: return "-"
         return String.format(Locale.ENGLISH, "%,.0f km", value)
@@ -66,6 +72,9 @@ object Formatting {
         "DK" -> "Denmark"
         "CZ" -> "Czechia"
         "SK" -> "Slovakia"
+        "BY" -> "Belarus"
+        "AT" -> "Austria"
+        "FR" -> "France"
         null -> "-"
         else -> code
     }

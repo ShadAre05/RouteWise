@@ -21,6 +21,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,7 +45,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.draw.alpha
 
-/** Text field with its validation message under it (SCR-08 error state of a form). */
+/** Text field with its validation message under it (SCR-08 error state of a form). [onBlur] runs when the field loses focus. */
 @Composable
 fun FormField(
     value: String,
@@ -51,27 +57,75 @@ fun FormField(
     password: Boolean = false,
     keyboard: KeyboardType = KeyboardType.Text,
     supporting: String? = null,
+    placeholder: String? = null,
+    onBlur: (() -> Unit)? = null,
 ) {
+    var hadFocus by remember { mutableStateOf(false) }
+    var visible by remember { mutableStateOf(false) }
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
+        placeholder = placeholder?.let { { Text(it) } },
         isError = error != null,
         supportingText = {
             val text = error ?: supporting
             if (text != null) Text(text)
         },
+        trailingIcon = if (password) {
+            {
+                TextButton(
+                    onClick = { visible = !visible },
+                    modifier = Modifier.testTag("${tag}_toggle").semantics {
+                        contentDescription = if (visible) "Hide password" else "Show password"
+                    },
+                ) { Text(if (visible) "Hide" else "Show") }
+            }
+        } else null,
         singleLine = true,
-        visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
+        visualTransformation = if (password && !visible) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(keyboardType = if (password) KeyboardType.Password else keyboard),
-        modifier = modifier.fillMaxWidth().testTag(tag),
+        modifier = modifier.fillMaxWidth().testTag(tag).onFocusChanged { state ->
+            if (hadFocus && !state.isFocused) onBlur?.invoke()
+            hadFocus = state.isFocused
+        },
     )
+}
+
+/** A message above a form or a list: information, or a warning when [warning] is set. */
+@Composable
+fun InfoBanner(
+    text: String,
+    modifier: Modifier = Modifier,
+    warning: Boolean = false,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+    tag: String = "banner",
+) {
+    val container = if (warning) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
+    val content = if (warning) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer
+    Column(
+        modifier.fillMaxWidth().background(container, RoundedCornerShape(8.dp)).padding(12.dp).testTag(tag),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text((if (warning) "⚠ " else "ⓘ ") + text, color = content, style = MaterialTheme.typography.bodyMedium)
+        if (actionLabel != null && onAction != null) {
+            TextButton(onClick = onAction, modifier = Modifier.testTag("${tag}_action")) { Text(actionLabel) }
+        }
+    }
 }
 
 /** Primary button that shows a spinner and ignores taps while the operation runs. */
 @Composable
-fun LoadingButton(text: String, loading: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, tag: String = "") {
-    Button(onClick = { if (!loading) onClick() }, modifier = modifier.fillMaxWidth().height(52.dp).testTag(tag)) {
+fun LoadingButton(
+    text: String,
+    loading: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tag: String = "",
+    enabled: Boolean = true,
+) {
+    Button(onClick = { if (!loading) onClick() }, enabled = enabled, modifier = modifier.fillMaxWidth().height(52.dp).testTag(tag)) {
         if (loading) {
             CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
         } else {

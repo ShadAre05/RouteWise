@@ -48,6 +48,7 @@ class AppFlowTest {
     @Test fun loginFormShowsValidationErrorsAndDoesNotSubmit() {
         val container = container()
         rule.setContent { RouteWiseTheme { RouteWiseRoot(container) } }
+        rule.onNodeWithTag("tab_login").performClick()
         rule.onNodeWithTag("email").performTextInput("not-an-email")
         rule.onNodeWithTag("submit").performClick()
         rule.onNodeWithText(Messages.EMAIL_INVALID).assertIsDisplayed()
@@ -58,6 +59,7 @@ class AppFlowTest {
         val container = container()
         rule.setContent { RouteWiseTheme { RouteWiseRoot(container) } }
 
+        rule.onNodeWithTag("tab_login").performClick()
         rule.onNodeWithTag("email").performTextInput(FakeRouteWiseApi.DEMO_EMAIL)
         rule.onNodeWithTag("password").performTextInput(FakeRouteWiseApi.DEMO_PASSWORD)
         rule.onNodeWithTag("submit").performClick()
@@ -75,5 +77,6 @@ class AppFlowTest {
         waitFor("total")
         rule.onNodeWithTag("total").assertIsDisplayed()
         rule.onNodeWithTag("variant_shortest").assertIsDisplayed()
+        rule.onNodeWithTag("saved_badge").assertIsDisplayed()
     }
 }

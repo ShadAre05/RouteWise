@@ -37,6 +37,7 @@ class AuthViewModelTest {
     @After fun tearDown() = Dispatchers.resetMain()
 
     @Test fun invalidEmailIsReportedWithoutCallingTheServer() = runTest {
+        vm.select(false)
         vm.onEmail("not-an-email")
         vm.onPassword("whatever-123")
         vm.submit()
@@ -46,7 +47,6 @@ class AuthViewModelTest {
     }
 
     @Test fun registrationNeedsPrivacyAndLongPassword() = runTest {
-        vm.switchMode()
         vm.onEmail("new@example.com")
         vm.onPassword("short")
         vm.submit()
@@ -57,6 +57,7 @@ class AuthViewModelTest {
     }
 
     @Test fun wrongPasswordShowsOneClearMessage() = runTest {
+        vm.select(false)
         vm.onEmail(FakeRouteWiseApi.DEMO_EMAIL)
         vm.onPassword("wrong-password")
         vm.submit()
@@ -66,6 +67,7 @@ class AuthViewModelTest {
     }
 
     @Test fun successfulLoginStoresTheSession() = runTest {
+        vm.select(false)
         vm.onEmail(FakeRouteWiseApi.DEMO_EMAIL)
         vm.onPassword(FakeRouteWiseApi.DEMO_PASSWORD)
         vm.submit()
@@ -73,13 +75,31 @@ class AuthViewModelTest {
         assertNotNull(session.current)
     }
 
-    @Test fun registeringTakenEmailMarksTheEmailField() = runTest {
-        vm.switchMode()
+    @Test fun registeringTakenEmailOffersLogInInstead() = runTest {
         vm.onEmail(FakeRouteWiseApi.DEMO_EMAIL)
         vm.onPassword("long-enough-password")
         vm.onPrivacy(true)
         vm.submit()
         advanceUntilIdle()
-        assertEquals(Messages.EMAIL_TAKEN, vm.state.value.emailError)
+        assertEquals(true, vm.state.value.emailTaken)
+        vm.logInInstead()
+        assertEquals(false, vm.state.value.registerMode)
+        assertEquals(FakeRouteWiseApi.DEMO_EMAIL, vm.state.value.email)
+    }
+
+    @Test fun passwordCounterFollowsTypingOnceTheMessageIsShown() = runTest {
+        vm.onPassword("123456")
+        vm.onPasswordBlur()
+        assertEquals(Messages.passwordShort(6), vm.state.value.passwordError)
+        vm.onPassword("1234567")
+        assertEquals(Messages.passwordShort(7), vm.state.value.passwordError)
+        vm.onPassword("1234567890")
+        assertEquals(null, vm.state.value.passwordError)
+    }
+
+    @Test fun switchingTabsKeepsTheTypedEmail() = runTest {
+        vm.onEmail("keep@example.com")
+        vm.select(false)
+        assertEquals("keep@example.com", vm.state.value.email)
     }
 }

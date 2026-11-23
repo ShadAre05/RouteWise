@@ -1,6 +1,8 @@
 package com.routewise.app.data
 
 import com.routewise.app.core.Logger
+import com.routewise.app.data.api.ApiErrorKind
+import com.routewise.app.data.api.ApiException
 import com.routewise.app.data.api.RouteWiseApi
 import com.routewise.app.data.api.TripDto
 import com.routewise.app.data.api.TripRequest
@@ -22,6 +24,8 @@ data class Calculation(
     val request: TripRequest,
     val selected: TripDto,
     val summaries: Map<String, VariantSummary>,
+    /** Variants the server could not route (for example "no tolls" when every road is charged). */
+    val unavailable: Set<String> = emptySet(),
 ) {
     val cheapestVariant: String?
         get() {
@@ -44,6 +48,7 @@ data class Calculation(
 
     companion object {
         const val FASTEST = "fastest"
+        const val NO_TOLLS = "no_tolls"
     }
 }
 
@@ -66,7 +71,10 @@ class TripCalculator(private val api: RouteWiseApi, private val logger: Logger) 
             throw outcomes.firstNotNullOfOrNull { it.exceptionOrNull() } ?: IllegalStateException("no result")
         }
         trips.filterKeys { it != Calculation.FASTEST }.values.forEach { discard(it) }
-        return Calculation(base, fastest, trips.mapValues { (_, trip) -> summaryOf(trip) })
+        val unavailable = VARIANTS.zip(outcomes)
+            .filter { (_, outcome) -> (outcome.exceptionOrNull() as? ApiException)?.kind == ApiErrorKind.NO_ROUTE }
+            .map { it.first }.toSet()
+        return Calculation(base, fastest, trips.mapValues { (_, trip) -> summaryOf(trip) }, unavailable)
     }
 
     /** Saves the chosen route as the entry of the history and removes the previous one. */

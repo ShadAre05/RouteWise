@@ -36,10 +36,19 @@ object PlaceCatalog {
         Place("Kosice", "SK", 21.2611, 48.7164),
     )
 
+    /** Well-known places outside the eight countries. They are found by the search so that the app can explain the rule. */
+    val unsupported: List<Place> = listOf(
+        Place("Minsk", "BY", 27.5615, 53.9006),
+        Place("Vienna", "AT", 16.3738, 48.2082),
+        Place("Paris", "FR", 2.3522, 48.8566),
+    )
+
+    fun isSupported(place: Place): Boolean = all.any { it.countryCode == place.countryCode }
+
     /** Case-insensitive search by part of the name; the UI requires at least three characters. */
     fun search(query: String): List<Place> {
         val text = query.trim()
         if (text.length < Validators.MIN_SEARCH_LENGTH) return emptyList()
-        return all.filter { it.name.contains(text, ignoreCase = true) }
+        return (all + unsupported).filter { it.name.contains(text, ignoreCase = true) }
     }
 }

@@ -64,8 +64,8 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 private val Tabs = listOf(
     Tab(Routes.PLAN, "Plan", Icons.Default.Place),
-    Tab(Routes.VEHICLES, "Cars", Icons.Default.Build),
     Tab(Routes.HISTORY, "History", Icons.Default.DateRange),
+    Tab(Routes.VEHICLES, "Vehicles", Icons.Default.Build),
     Tab(Routes.PROFILE, "Profile", Icons.Default.Person),
 )
 
@@ -129,7 +129,7 @@ private fun MainApp(container: AppContainer) {
                     val vm: VehiclesViewModel = viewModel(factory = factoryOf {
                         VehiclesViewModel(container.vehicles, container.errors, container.notifier)
                     })
-                    VehiclesScreen(vm)
+                    VehiclesScreen(vm, onFirstCarSaved = { switchTab(nav, Routes.PLAN) })
                 }
                 composable(Routes.HISTORY) {
                     val vm: HistoryViewModel = viewModel(factory = factoryOf {
@@ -140,9 +140,9 @@ private fun MainApp(container: AppContainer) {
                 composable(Routes.TRIP) { backStack ->
                     val id = backStack.arguments?.getString("id").orEmpty()
                     val vm: TripDetailViewModel = viewModel(factory = factoryOf {
-                        TripDetailViewModel(id, container.trips, container.errors)
+                        TripDetailViewModel(id, container.trips, container.errors, container.notifier)
                     })
-                    TripDetailScreen(vm)
+                    TripDetailScreen(vm, onDeleted = { nav.popBackStack() })
                 }
                 composable(Routes.PROFILE) {
                     val vm: ProfileViewModel = viewModel(factory = factoryOf {

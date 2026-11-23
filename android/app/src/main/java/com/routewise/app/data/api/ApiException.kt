@@ -20,6 +20,7 @@ class ApiException(
     val kind: ApiErrorKind,
     val serverMessage: String? = null,
     val requestId: String? = null,
+    val status: Int? = null,
     cause: Throwable? = null,
 ) : Exception(serverMessage ?: kind.name, cause) {
 
@@ -32,8 +33,8 @@ class ApiException(
         ApiErrorKind.CONFLICT -> serverMessage ?: Messages.UNKNOWN
         ApiErrorKind.VALIDATION -> serverMessage ?: Messages.UNKNOWN
         ApiErrorKind.NO_ROUTE -> Messages.NO_ROUTE
-        ApiErrorKind.UPSTREAM -> Messages.SERVER_DOWN
-        ApiErrorKind.SERVER -> Messages.SERVER_DOWN
+        ApiErrorKind.UPSTREAM -> Messages.serverError(status)
+        ApiErrorKind.SERVER -> Messages.serverError(status)
         ApiErrorKind.UNKNOWN -> Messages.UNKNOWN
     }
 

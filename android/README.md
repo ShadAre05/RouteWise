@@ -12,7 +12,7 @@ Status of this document: it describes the code in this folder. Everything that i
 | Criterion | Where it is implemented |
 |---|---|
 | Modern framework | Kotlin + Jetpack Compose + Material 3 (`app/src/main/java/com/routewise/app/ui`) |
-| Component-based structure | Screens in `ui/<feature>`, reusable components in `ui/components`, API and business logic in `data` |
+| Component-based structure | Screens in `ui/<feature>`, reusable components in `ui/components` (`FormField` with show/hide password and blur validation, `InfoBanner`, `LoadingButton`, skeletons, `ErrorState`, `EmptyState`, `ConfirmDialog`), API and business logic in `data` |
 | MVVM | Every screen has a `ViewModel` exposing `StateFlow` state; screens only render state and send events |
 | Forms with validation | `ui/auth`, `ui/vehicles`, `ui/plan`, `ui/profile`; the rules are in `domain/Validators.kt` |
 | Global error handling | `core/ErrorHandler.kt`, `core/Notifier.kt`, snackbar host in `ui/navigation/RouteWiseRoot.kt` |
@@ -20,7 +20,7 @@ Status of this document: it describes the code in this folder. Everything that i
 | 401 / 403 / 404 / 500 handling | `data/api/ApiException.kt` maps status and error code, `HttpRouteWiseApi` renews the token on 401 |
 | Typed API layer | `data/api/ApiModels.kt` (DTOs), `RouteWiseApi.kt` (interface), `HttpRouteWiseApi.kt` (HTTP) |
 | No tokens in code | Tokens are received at run time and kept in `EncryptedSharedPreferences` (`data/session/Session.kt`) |
-| Unit tests (>= 3 components) | `app/src/test/.../domain`, `.../data`, `.../ui` – 37 tests, see [Tests](#5-tests) |
+| Unit tests (>= 3 components) | `app/src/test/.../domain`, `.../data`, `.../ui` – 61 tests, see [Tests](#5-tests) |
 | UI / e2e tests | `app/src/test/.../ui/AppFlowTest.kt` – 2 tests with Compose test and Robolectric |
 
 ## 2. How to get and run the app
@@ -64,7 +64,7 @@ The base URL is a build setting, not a constant in the code. Clear-text HTTP is 
 ```mermaid
 flowchart TB
     subgraph UI["UI layer (Jetpack Compose)"]
-        Screens["Screens\nAuth · Plan · Budget · Cars · History · Profile"]
+        Screens["Screens\nAuth · Plan · Budget · History · Vehicles · Profile"]
         Components["Reusable components\nFormField · LoadingButton · Skeleton · ErrorState · EmptyState · ConfirmDialog"]
         Nav["RouteWiseRoot\nNavHost + bottom bar + snackbar"]
     end
@@ -141,7 +141,7 @@ flowchart LR
     Has -- no --> Login[Log in / Create account]
     Login -- valid --> Plan
     Has -- yes --> Plan[Plan: from, to, hours per day, lodging]
-    Plan -- "no car" --> Cars[Cars: add a car]
+    Plan -- "no car" --> Cars[Vehicles: add a car]
     Cars --> Plan
     Plan -- Calculate --> Budget[Budget: total, costs, 3 route chips]
     Budget -- "choose another route" --> Budget
@@ -151,17 +151,30 @@ flowchart LR
     Plan --> Profile[Profile: change password, log out, delete account]
 ```
 
-1. **Register / log in (SCR-01).** E-mail format, password length (10–128) and the privacy checkbox are checked
-   before sending. A taken e-mail is shown on the e-mail field; a wrong password shows one neutral message.
-2. **Cars (SCR-02).** Add, edit, delete (with confirmation) and make default. Consumption 2.0–30.0 l/100 km,
-   tank empty or 20–120 l, name 1–60 characters. A comma is accepted as the decimal separator.
-3. **Plan (SCR-03).** Type at least three letters of a city and pick it from the list. The day limit is 4–10 h.
-   Without a car the screen says so and leads to *Cars*.
-4. **Budget (SCR-04).** Total, distance, duration, nights and every cost line. Estimated or missing figures are
-   labelled, never shown as exact. The chips compare the three route variants with the fastest one.
-5. **History and detail (SCR-06).** Newest first, delete with confirmation, open a trip to see its full breakdown.
-6. **Profile (SCR-07).** Change password, log out, delete the account (with confirmation).
-7. **States (SCR-08).** Skeleton while loading, message with retry on failure, hint with an action when empty.
+1. **Register / log in (SCR-01).** Two tabs, *Register* and *Log in*; the typed e-mail is kept when you switch. The
+   e-mail is checked when the field loses focus, the password rule shows a live counter ("Use at least 10
+   characters (now 6)"), the password has a Show/Hide switch, the privacy notice opens in a dialog. A taken e-mail
+   shows a banner with **Log in instead**; wrong credentials show one neutral message.
+2. **Vehicles (SCR-02).** List with *Default* / *Set default*, **＋ Add car** at the bottom, a full-screen form
+   (name, fuel type, consumption 2.0–30.0 l/100 km with a helper text, tank 20–120 l or empty, "Use as default car").
+   An invalid form shows the banner "The car was not saved. Fix the N fields marked above." The first car explains
+   why it is needed and returns to Plan after saving. Delete is in the edit form and asks for confirmation.
+3. **Plan (SCR-03).** From / To by city name (at least three letters), daily limit stepper 4–10 h, *Fuel at start*
+   (Full, ¾, ½, ¼; only for a car with a tank size), overnight class, car selector. **Calculate** is disabled and
+   says why ("Set the destination to calculate"). Places outside the eight countries are refused with the message of
+   the specification. Without a car a banner leads to *Vehicles*.
+4. **Trip budget (SCR-04).** Route chips with total and the difference to the fastest route ("−8.32 · +35 min",
+   "✓ Cheapest"), distance and time, kilometres per country, arrival line with the check-in hint, the date of the
+   fuel prices (a warning when older than 14 days), the badge "✓ Saved to History", one row per cost with its
+   explanation ("150 km × 1.78 €/l", "Estimate", "EU average used (no price)", "no data") and the total. Switching
+   the chip changes the budget without a new calculation screen.
+5. **History and trip detail (SCR-06).** Newest first; swipe a row to the left to delete (with confirmation and a
+   "Trip deleted" snackbar); the detail shows the stored breakdown, the price date, the car and a **Delete trip**
+   button for users who do not swipe.
+6. **Profile (SCR-07).** E-mail, privacy notice, change password (current, new, repeat; the new one must differ and
+   match), log out, delete account (asks for the password, names what is erased).
+7. **States (SCR-08).** Skeleton while loading ("Calculating…", plus "This takes longer than usual" after 5 s), "No
+   connection" and "Service is unavailable … Error code: SRV-503" with **Try again**, empty states with an action.
 
 ## 5. Tests
 
@@ -171,11 +184,14 @@ Run with `./gradlew testDebugUnitTest`. All tests run on the JVM; no emulator is
 |---|---|---|
 | `ValidatorsTest` | validation rules | 9 |
 | `FormattingTest` | money, time and name formatting | 4 |
+| `TripTextTest` | texts of a trip: route title, km per country, price age, arrival and check-in hint, cost explanations | 9 |
 | `HttpRouteWiseApiTest` | API client against a mock HTTP server: bearer header, token refresh and retry, failed refresh, 403/404/422/500 mapping, unreachable server | 9 |
 | `TripCalculatorTest` | one history entry per calculation, switching the route, deltas | 4 |
-| `AuthViewModelTest` | form validation, wrong password, taken e-mail, successful login | 5 |
+| `AuthViewModelTest` | tabs, validation, live counter, wrong password, taken e-mail | 7 |
 | `VehiclesViewModelTest` | list, invalid form, add, delete with confirmation | 4 |
-| `AppFlowTest` | UI: validation messages on the login screen. End to end: log in, plan Vilnius → Warsaw, see the total and the route chips | 2 |
+| `PlanViewModelTest` | disabled Calculate with a reason, unsupported place, search rules, limit stepper, fuel at start, result | 6 |
+| `ProfileViewModelTest` | password rules, wrong current password, delete with password | 7 |
+| `AppFlowTest` | UI: validation messages on the login screen. End to end: log in, plan Vilnius → Warsaw, see the total, the route chips and the saved badge | 2 |
 
 ## 6. Technology choices
 
@@ -192,14 +208,27 @@ Run with `./gradlew testDebugUnitTest`. All tests run on the JVM; no emulator is
 
 ## 7. Limitations
 
-- **The map, address search, weather, alternatives view, administration and screens SCR-05, SCR-09–SCR-12 of
-  the UX specification are not implemented.** Places are chosen from a built-in list of 23 cities in LT, LV, EE,
-  PL, DE, DK, CZ, SK (`domain/Places.kt`). The API accepts any coordinates; only the picker is limited.
-- The API returns one route per request. To compare three variants the app sends three requests, keeps the
-  selected one in the history and deletes the others (`data/TripCalculator.kt`). If a deletion fails the user may
-  see an extra entry in the history.
-- The overnight stop city and the refuel plan returned by the API are not shown on a map; the refuel plan is not
-  requested because the start fuel level has no input yet.
+Deviations from the UX specification (`docs/RouteWise_UX_Design_Specification.pdf`):
+
+- **Not implemented:** the map (long-press, locate-me, "my location" prefill), the weather strip, SCR-05 *Overnight
+  stop and lodging*, SCR-09 *Reference data (admin)*, SCR-10 *Route details*, SCR-11 *Refuel plan* as a screen, and
+  SCR-12 *Fuel price trend*. Places are chosen from a built-in list of 23 cities in LT, LV, EE, PL, DE, DK, CZ, SK
+  (`domain/Places.kt`) plus three cities outside the area that exist to show the "outside the supported countries"
+  message. The API accepts any coordinates; only the picker is limited. The refuel plan returned by the API is shown
+  as a simple list on the budget.
+- **Offline state with saved data** (a cached History) is not implemented; without a connection the screens show the
+  "No connection" state with **Try again**.
+- **Login block after 5 failed attempts:** the API answers a blocked login with the same `401 unauthorized` as a wrong
+  password, so the client cannot show "Login is blocked for 10 minutes. Try again at 09:51". It shows the neutral
+  wrong-credentials message.
+- **Delete account with password:** the API deletes the account on the bearer token alone. The client asks for the
+  password and proves it with one more sign-in before it sends the delete request.
+- **Alternatives:** the API returns one route per request. To compare three variants the app sends three requests,
+  keeps the selected one in the history and deletes the others (`data/TripCalculator.kt`). If a deletion fails the
+  user may see an extra entry in the history. "No tolls is not available" is shown when the server answers
+  `no_route` for that variant.
+- **Lodging line:** the API does not return the lodging class or the city of the stop, so the row says "Estimate ·
+  <destination city>".
 - Demo mode produces approximate figures from straight-line distance. Real figures need the back-end with a routing
   engine.
 - The release build is not signed and not obfuscated; only the debug APK is produced.

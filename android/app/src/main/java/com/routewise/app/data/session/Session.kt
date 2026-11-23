@@ -6,7 +6,7 @@ import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-data class Tokens(val accessToken: String, val refreshToken: String)
+data class Tokens(val accessToken: String, val refreshToken: String, val email: String? = null)
 
 /** Persistent storage of the tokens. The real implementation encrypts them with a key from the Android Keystore. */
 interface TokenStore {
@@ -38,11 +38,12 @@ class SecureTokenStore(context: Context) : TokenStore {
     override fun load(): Tokens? {
         val access = prefs.getString(KEY_ACCESS, null) ?: return null
         val refresh = prefs.getString(KEY_REFRESH, null) ?: return null
-        return Tokens(access, refresh)
+        return Tokens(access, refresh, prefs.getString(KEY_EMAIL, null))
     }
 
     override fun save(tokens: Tokens) {
-        prefs.edit().putString(KEY_ACCESS, tokens.accessToken).putString(KEY_REFRESH, tokens.refreshToken).apply()
+        prefs.edit().putString(KEY_ACCESS, tokens.accessToken).putString(KEY_REFRESH, tokens.refreshToken)
+            .putString(KEY_EMAIL, tokens.email).apply()
     }
 
     override fun clear() {
@@ -53,6 +54,7 @@ class SecureTokenStore(context: Context) : TokenStore {
         const val FILE_NAME = "routewise_session"
         const val KEY_ACCESS = "access"
         const val KEY_REFRESH = "refresh"
+        const val KEY_EMAIL = "email"
     }
 }
 

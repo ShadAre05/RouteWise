@@ -3,6 +3,7 @@ package com.routewise.app.ui.history
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.routewise.app.core.ErrorHandler
+import com.routewise.app.core.Messages
 import com.routewise.app.core.Notifier
 import com.routewise.app.data.TripRepository
 import com.routewise.app.data.api.TripDto
@@ -55,6 +56,7 @@ class HistoryViewModel(
                 trips.delete(trip.id)
                 val current = (_list.value as? Load.Ready)?.data.orEmpty()
                 _list.value = Load.Ready(current.filter { it.id != trip.id })
+                notifier.show(Messages.TRIP_DELETED)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

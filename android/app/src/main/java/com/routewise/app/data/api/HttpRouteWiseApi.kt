@@ -135,7 +135,7 @@ class HttpRouteWiseApi(
         val raw = send("POST", "auth/refresh", ApiJson.encodeToString(RefreshRequest(current.refreshToken)), false)
         if (raw.status in 200..299) {
             val tokens: TokenResponse = decode(raw)
-            session.update(Tokens(tokens.accessToken, tokens.refreshToken))
+            session.update(current.copy(accessToken = tokens.accessToken, refreshToken = tokens.refreshToken))
             true
         } else {
             session.clear(expired = true)
@@ -151,7 +151,7 @@ class HttpRouteWiseApi(
         } catch (e: IllegalArgumentException) {
             null
         }
-        return ApiException(ApiException.kindOf(raw.status, error?.code), error?.message, error?.requestId)
+        return ApiException(ApiException.kindOf(raw.status, error?.code), error?.message, error?.requestId, raw.status)
     }
 
     private inline fun <reified T> decode(raw: Raw): T =
