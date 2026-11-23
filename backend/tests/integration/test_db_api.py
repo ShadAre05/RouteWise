@@ -7,11 +7,11 @@ import uuid
 
 import httpx
 import pytest
-from fastapi.testclient import TestClient
 
 from app.clients.osrm import OsrmClient
 from app.core.config import Settings
 from app.main import create_app
+from tests.contract import ContractClient
 
 URL = os.environ.get("INTEGRATION_DATABASE_URL")
 pytestmark = pytest.mark.skipif(not URL, reason="INTEGRATION_DATABASE_URL is not set")
@@ -48,7 +48,7 @@ def fake_osrm(request: httpx.Request) -> httpx.Response:
 def client():
     settings = Settings(database_url=URL, jwt_secret="integration-secret-integration-secret-01")
     app = create_app(settings)
-    with TestClient(app) as c:
+    with ContractClient(app) as c:
         app.state.routing = OsrmClient("http://osrm.test", 1.0, httpx.Client(transport=httpx.MockTransport(fake_osrm)))
         yield c
 

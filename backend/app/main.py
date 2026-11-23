@@ -7,9 +7,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.utils import get_openapi
 
 from app.api.error_handlers import register_error_handlers
+from app.api.openapi_docs import build_openapi
 from app.api.routers import auth, health, reference, trips, vehicles
 from app.core.config import Settings, get_settings
 from app.core.constants import API_PREFIX, REQUEST_ID_HEADER
@@ -17,6 +17,35 @@ from app.core.logging import configure_logging, request_id_var
 from app.db.session import make_engine, make_session_factory
 
 log = logging.getLogger("app.request")
+
+API_DESCRIPTION = """
+REST API of RouteWise: it calculates what a car trip across Europe costs (fuel, road charges, lodging)
+and keeps the history of the user's calculations.
+
+**Base path** `/api/v1` (the version is part of the path). **Format** JSON, UTF-8.
+
+**Authentication.** Register or sign in, then send `Authorization: Bearer <access_token>`.
+Access tokens live 15 minutes; renew them with the single-use refresh token. Reference data
+(`/countries`, `/fuel-prices`, ...) is public.
+
+**Numbers.** Money, prices and distances are decimal numbers serialised as JSON **strings**
+(`"50.46"`) so that no precision is lost. Amounts are in euro. Timestamps are ISO 8601 with offset.
+
+**Errors.** Every error has the same shape:
+`{"error": {"code", "message", "details", "request_id"}}`. The `request_id` is also returned in the
+`X-Request-ID` header; send your own `X-Request-ID` to trace a call end to end.
+
+Guides: Getting Started, integration tutorial, authentication, errors and architecture are in the
+repository folder `docs/api/`.
+"""
+
+TAGS = [
+    {"name": "service", "description": "Health checks for monitoring."},
+    {"name": "auth", "description": "Accounts, tokens and password."},
+    {"name": "vehicles", "description": "The user's vehicles (consumption, tank, default)."},
+    {"name": "trips", "description": "Cost calculation and the history of saved trips."},
+    {"name": "reference data", "description": "Public data: countries, fuel prices, speed profiles, lodging rates."},
+]
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -34,8 +63,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         title="RouteWise API",
         version="1.0.0",
-        description="Back-end of RouteWise: trip cost calculation across 8 European countries. "
-        "Authenticate with /auth/login and send the access token as `Authorization: Bearer <token>`.",
+        description=API_DESCRIPTION,
+        contact={"name": "RouteWise (EHU diploma project)", "url": "https://github.com/ShadAre05/RouteWise"},
+        license_info={"name": "See the repository"},
+        openapi_tags=TAGS,
+        servers=[{"url": "http://localhost:8000", "description": "Local Docker Compose stack"}],
+        generate_unique_id_function=lambda route: route.name,
         lifespan=lifespan,
     )
     if settings.cors_origins:
@@ -70,25 +103,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     for router in (auth.router, vehicles.router, trips.router, reference.router):
         app.include_router(router, prefix=API_PREFIX)
-    app.openapi = lambda: _openapi_with_unified_errors(app)
+    app.openapi = lambda: build_openapi(app)
     return app
-
-
-def _openapi_with_unified_errors(app: FastAPI) -> dict:
-    """Document 422 in the same error format the API really returns (the framework default differs)."""
-    if app.openapi_schema:
-        return app.openapi_schema
-    schema = get_openapi(title=app.title, version=app.version, description=app.description, routes=app.routes)
-    error_ref = {"$ref": "#/components/schemas/ErrorResponse"}
-    for path_item in schema["paths"].values():
-        for operation in path_item.values():
-            response = operation.get("responses", {}).get("422")
-            if response is not None:
-                response["description"] = "Validation error"
-                response["content"] = {"application/json": {"schema": error_ref}}
-    components = schema.get("components", {}).get("schemas", {})
-    if "ErrorResponse" in components:
-        components.pop("HTTPValidationError", None)
-        components.pop("ValidationError", None)
-    app.openapi_schema = schema
-    return schema

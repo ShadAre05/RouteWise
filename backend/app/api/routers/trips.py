@@ -21,6 +21,14 @@ NOT_FOUND = {404: {"model": ErrorResponse}}
 def create_trip(
     body: schemas.TripCreate, user_id=Depends(deps.user_id_of), service: TripService = Depends(deps.trip_service)
 ):
+    """
+    Asks the routing engine for the route, splits it by country, prices fuel, road charges and lodging,
+    plans the days and an optional refuel stop, and saves the result to the history in one transaction.
+
+    The coordinates are used for routing only and are never stored. The response is the saved trip with its
+    cost lines. Errors: 422 for invalid input, when no route exists, or when there is no vehicle (none added,
+    or `vehicle_id` is unknown or belongs to someone else), 502 when the routing engine is not available.
+    """
     request = TripRequest(
         origin_label=body.origin_label,
         destination_label=body.destination_label,
@@ -44,17 +52,20 @@ def list_trips(
     user_id=Depends(deps.user_id_of),
     service: TripService = Depends(deps.trip_service),
 ):
+    """Returns the signed-in user's saved trips, newest first, in pages (`limit` 1-100, default 20; `offset` from 0)."""
     items, total = service.list(user_id, limit, offset)
     return schemas.TripPage(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.get("/{trip_id}", response_model=schemas.TripOut, responses=NOT_FOUND, summary="Trip details")
 def get_trip(trip_id: uuid.UUID, service: TripService = Depends(deps.trip_service)):
+    """Returns one saved trip with its cost lines and refuel stops. A trip of another user answers 404."""
     return service.get(trip_id)
 
 
 @router.patch("/{trip_id}", response_model=schemas.TripOut, responses=NOT_FOUND, summary="Rename a saved trip")
 def rename_trip(trip_id: uuid.UUID, body: schemas.TripRename, service: TripService = Depends(deps.trip_service)):
+    """Changes only the title of a saved trip. The calculation itself never changes."""
     return service.rename(trip_id, body.title)
 
 
@@ -62,5 +73,6 @@ def rename_trip(trip_id: uuid.UUID, body: schemas.TripRename, service: TripServi
     "/{trip_id}", status_code=status.HTTP_204_NO_CONTENT, responses=NOT_FOUND, summary="Delete a trip (US-18)"
 )
 def delete_trip(trip_id: uuid.UUID, service: TripService = Depends(deps.trip_service)):
+    """Deletes a saved trip."""
     service.delete(trip_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -1,0 +1,2281 @@
+openapi: 3.1.0
+info:
+  title: RouteWise API
+  description: |
+    REST API of RouteWise: it calculates what a car trip across Europe costs (fuel, road charges, lodging)
+    and keeps the history of the user's calculations.
+
+    **Base path** `/api/v1` (the version is part of the path). **Format** JSON, UTF-8.
+
+    **Authentication.** Register or sign in, then send `Authorization: Bearer <access_token>`.
+    Access tokens live 15 minutes; renew them with the single-use refresh token. Reference data
+    (`/countries`, `/fuel-prices`, ...) is public.
+
+    **Numbers.** Money, prices and distances are decimal numbers serialised as JSON **strings**
+    (`"50.46"`) so that no precision is lost. Amounts are in euro. Timestamps are ISO 8601 with offset.
+
+    **Errors.** Every error has the same shape:
+    `{"error": {"code", "message", "details", "request_id"}}`. The `request_id` is also returned in the
+    `X-Request-ID` header; send your own `X-Request-ID` to trace a call end to end.
+
+    Guides: Getting Started, integration tutorial, authentication, errors and architecture are in the
+    repository folder `docs/api/`.
+  contact:
+    name: RouteWise (EHU diploma project)
+    url: https://github.com/ShadAre05/RouteWise
+  license:
+    name: See the repository
+  version: 1.0.0
+servers:
+- url: http://localhost:8000
+  description: Local Docker Compose stack
+paths:
+  /health:
+    get:
+      tags:
+      - service
+      summary: 'Liveness: the process is running'
+      description: Answers 200 while the process runs. Use it for container liveness probes; it does not touch the
+        database.
+      operationId: health
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Health
+              examples:
+                default:
+                  summary: Process is alive
+                  value:
+                    status: ok
+  /health/ready:
+    get:
+      tags:
+      - service
+      summary: 'Readiness: the database answers'
+      description: Answers 200 when the database accepts a query, otherwise 500. Use it for readiness probes.
+      operationId: ready
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Ready
+              examples:
+                default:
+                  summary: Database answers
+                  value:
+                    status: ready
+  /api/v1/auth/register:
+    post:
+      tags:
+      - auth
+      summary: Create an account
+      description: |
+        Creates an account and signs the user in. The password is hashed inside PostgreSQL (bcrypt); it is never
+        stored or logged.
+
+        Returns an access token (15 minutes) and a single-use refresh token. Errors: 409 when the e-mail is
+        taken, 422 when a field is invalid.
+      operationId: register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              default:
+                summary: New account
+                value:
+                  email: driver@example.com
+                  password: correct-horse-battery
+                  privacy_accepted: true
+        required: true
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+              examples:
+                default:
+                  summary: Account created
+                  value: &id001
+                    access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOi...
+                    refresh_token: 5ceIFcTIm95XFCvLwSZy4tZPOONIK4T3f7nYpJD9OxVp3VxwBd662d1j4zchTofv
+                    token_type: bearer
+                    expires_in: 900
+        '409':
+          description: Conflict with existing data (for example the e-mail is already registered)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                default:
+                  summary: E-mail already registered
+                  value:
+                    error:
+                      code: conflict
+                      message: this e-mail is already registered
+                      details: null
+                      request_id: fb956027107b4a219803813b9a854540
+        '422':
+          description: Invalid input (`details` lists the fields) or no route between the points
+          content:
+            application/json:
+              schema: &id002
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                default:
+                  summary: Several invalid fields
+                  value:
+                    error:
+                      code: validation_failed
+                      message: request validation failed
+                      details:
+                      - field: email
+                        message: 'value is not a valid email address: An email address must have an @-sign.'
+                      - field: password
+                        message: String should have at least 8 characters
+                      - field: privacy_accepted
+                        message: Input should be True
+                      request_id: fb956027107b4a219803813b9a854540
+  /api/v1/auth/login:
+    post:
+      tags:
+      - auth
+      summary: Sign in
+      description: |
+        Checks the e-mail and password and returns a token pair.
+
+        After 5 failed attempts the account is locked for 10 minutes; the answer is then the same 401 as for a
+        wrong password, so an attacker learns nothing.
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              default:
+                summary: Sign in
+                value:
+                  email: driver@example.com
+                  password: correct-horse-battery
+        required: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+              examples:
+                default:
+                  summary: Signed in
+                  value: *id001
+        '401':
+          description: Missing, malformed or expired access token, or wrong login credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                default:
+                  summary: Wrong e-mail or password (also while the account is locked)
+                  value:
+                    error:
+                      code: unauthorized
+                      message: invalid e-mail or password
+                      details: null
+                      request_id: fb956027107b4a219803813b9a854540
+        '422':
+          description: Invalid input (`details` lists the fields) or no route between the points
+          content:
+            application/json:
+              schema: *id002
+              example:
+                error:
+                  code: validation_failed
+                  message: request validation failed
+                  details: null
+                  request_id: fb956027107b4a219803813b9a854540
+  /api/v1/auth/refresh:
+    post:
+      tags:
+      - auth
+      summary: Exchange a refresh token
+      description: |
+        Exchanges a refresh token for a new token pair. Every refresh token works **once** (rotation): the old
+        one is revoked, so a stolen and already used token is useless.
+      operationId: refresh
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+            examples:
+              default:
+                summary: Renew the tokens
+                value: &id003
+                  refresh_token: 5ceIFcTIm95XFCvLwSZy4tZPOONIK4T3f7nYpJD9OxVp3VxwBd662d1j4zchTofv
+        required: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+              examples:
+                default:
+                  summary: New token pair; the old refresh token is dead
+                  value: *id001
+        '401':
+          description: Missing, malformed or expired access token, or wrong login credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                default:
+                  summary: Unknown, used or expired refresh token
+                  value:
+                    error:
+                      code: unauthorized
+                      message: invalid or expired refresh token
+                      details: null
+                      request_id: fb956027107b4a219803813b9a854540
+        '422':
+          description: Invalid input (`details` lists the fields) or no route between the points
+          content:
+            application/json:
+              schema: *id002
+              example:
+                error:
+                  code: validation_failed
+                  message: request validation failed
+                  details: null
+                  request_id: fb956027107b4a219803813b9a854540
+  /api/v1/auth/logout:
+    post:
+      tags:
+      - auth
+      summary: Revoke a refresh token
+      description: |
+        Revokes a refresh token. Always answers 204, also for an unknown or already revoked token, so the call
+        is safe to repeat.
+      operationId: logout
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+            examples:
+              default:
+                summary: Revoke a refresh token
+                value: *id003
+        required: true
+      responses:
+        '204':
+          description: Success, no content
+        '422':
+          description: Invalid input (`details` lists the fields) or no route between the points
+          content:
+            application/json:
+              schema: *id002
+              example:
+                error:
+                  code: validation_failed
+                  message: request validation failed
+                  details: null
+                  request_id: fb956027107b4a219803813b9a854540
+  /api/v1/auth/change-password:
+    post:
+      tags:
+      - auth
+      summary: Change the password (US-19)
+      description: Changes the password of the signed-in user and revokes all refresh tokens. Requires the old password.
+      operationId: change_password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+            examples:
+              default:
+                summary: Change the password
+                value:
+                  old_password: correct-horse-battery
+                  new_password: even-better-passphrase
+        required: true
+      responses:
+        '204':
+          description: Success, no content
+        '401':
+          description: Missing, malformed or expired access token, or wrong login credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                wrong_old:
+                  summary: The old password is wrong
+                  value:
+                    error:
+                      code: unauthorized
+                      message: the current password is wrong
+                      details: null
+                      request_id: fb956027107b4a219803813b9a854540
+                missing: &id004
+                  summary: No Authorization header
+                  value:
+                    error:
+                      code: unauthorized
+                      message: missing bearer token
+                      details: null
+                      request_id: fb956027107b4a219803813b9a854540
+                expired: &id005
+                  summary: 'Expired or malformed token: refresh it, then sign in again'
+                  value:
+                    error:
+                      code: unauthorized
+                      message: invalid or expired token
+                      details: null
+                      request_id: fb956027107b4a219803813b9a854540
+        '422':
+          description: Invalid input (`details` lists the fields) or no route between the points
+          content:
+            application/json:
+              schema: *id002
+              examples:
+                default:
+                  summary: New password too short
+                  value:
+                    error:
+                      code: validation_failed
+                      message: request validation failed
+                      details:
+                      - field: new_password
+                        message: String should have at least 8 characters
+                      request_id: fb956027107b4a219803813b9a854540
+      security:
+      - HTTPBearer: []
+  /api/v1/users/me:
+    delete:
+      tags:
+      - auth
+      summary: Delete the account and all its data (US-20)
+      description: Permanently deletes the account with its vehicles, trips and tokens (US-20). Cannot be undone.
+      operationId: delete_account
+      responses:
+        '204':
+          description: Success, no content
+        '401':
+          description: Missing, malformed or expired access token, or wrong login credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples: &id006
+                missing: *id004
+                expired: *id005
+      security:
+      - HTTPBearer: []
+  /api/v1/vehicles:
+    get:
+      tags:
+      - vehicles
+      summary: List my vehicles
+      description: The signed-in user's vehicles.
+      operationId: list_vehicles
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/VehicleOut'
+                type: array
+                title: Response List Vehicles
+              examples:
+                default:
+                  summary: Two vehicles
+                  value:
+                  - &id007
+                    id: 7f59951e-fa3a-48e6-97f8-bcaeaadf44b9
+                    name: Family car
+                    fuel_type: petrol95
+                    consumption_l100: '7.5'
+                    tank_l: '50.0'
+                    is_default: true
+                    created_at: '2026-11-23T14:51:02.755411+02:00'
+                    updated_at: '2026-11-23T14:51:02.755411+02:00'
+                  - id: 335b9b1c-9a9d-449b-bb2a-0f4e4974e1f9
+                    name: Diesel van
+                    fuel_type: diesel
+                    consumption_l100: '8.2'
+                    tank_l: null
+                    is_default: false
+                    created_at: '2026-11-23T14:51:02.782024+02:00'
+                    updated_at: '2026-11-23T14:51:02.803658+02:00'
+        '401':
+          description: Missing, malformed or expired access token, or wrong login credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples: *id006
+      security:
+      - HTTPBearer: []
+    post:
+      tags:
+      - vehicles
+      summary: Add a vehicle (US-03)
+      description: |
+        Adds a vehicle. If `is_default` is true, the previous default vehicle stops being the default. The first
+        vehicle becomes the default automatically.
+      operationId: create_vehicle
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleCreate'
+            examples:
+              petrol:
+                summary: Petrol car with a known tank
+                value:
+                  name: Family car
+                  fuel_type: petrol95
+                  consumption_l100: 7.5
+                  tank_l: 50
+                  is_default: true
+              diesel:
+                summary: Diesel van without a tank size
+                value:
+                  name: Diesel van
+                  fuel_type: diesel
+                  consumption_l100: 8.2
+        required: true
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleOut'
+              examples:
+                default:
+                  summary: Vehicle created
+                  value: *id007
+        '401':
+          description: Missing, malformed or expired access token, or wrong login credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples: *id006
+        '422':
+          description: Invalid input (`details` lists the fields) or no route between the points
+          content:
+            application/json:
+              schema: *id002
+              examples:
+                default:
+                  summary: Invalid vehicle
+                  value:
+                    error:
+                      code: validation_failed
+                      message: request validation failed
+                      details:
+                      - field: name
+                        message: String should have at least 1 character
+                      - field: fuel_type
+                        message: Input should be 'petrol95' or 'diesel'
+                      - field: consumption_l100
+                        message: Input should be greater than or equal to 2.0
+                      request_id: fb956027107b4a219803813b9a854540
+      security:
+      - HTTPBearer: []
+  /api/v1/vehicles/{vehicle_id}:
+    get:
+      tags:
+      - vehicles
+      summary: Get a vehicle
+      description: Returns one vehicle. A vehicle of another user answers 404.
+      operationId: get_vehicle
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: vehicle_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Vehicle Id
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleOut'
+              examples:
+                default:
+                  summary: One vehicle
+                  value: *id007
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples: *id006
+          description: Missing, malformed or expired access token, or wrong login credentials
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                default:
+                  summary: Unknown vehicle or one of another user
+                  value:
+                    error:
+                      code: not_found
+                      message: vehicle not found
+                      details: null
+                      request_id: fb956027107b4a219803813b9a854540
+          description: The resource does not exist or belongs to another user
+        '422':
+          description: Invalid input (`details` lists the fields) or no route between the points
+          content:
+            application/json:
+              schema: *id002
+              example:
+                error:
+                  code: validation_failed
+                  message: request validation failed
+                  details: null
+                  request_id: fb956027107b4a219803813b9a854540
+    patch:
+      tags:
+      - vehicles
+      summary: Edit a vehicle
+      description: 'Partial update: send only the fields that change.'
+      operationId: update_vehicle
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: vehicle_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Vehicle Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleUpdate'
+            examples:
+              default:
+                summary: Change the consumption and make it the default
+                value:
+                  consumption_l100: 8.0
+                  is_default: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleOut'
+              examples:
+                default:
+                  summary: Updated vehicle
+                  value:
+                    id: 335b9b1c-9a9d-449b-bb2a-0f4e4974e1f9
+                    name: Diesel van
+                    fuel_type: diesel
+                    consumption_l100: '8.0'
+                    tank_l: null
+                    is_default: true
+                    created_at: '2026-11-23T14:51:02.782024+02:00'
+                    updated_at: '2026-11-23T14:51:02.803658+02:00'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples: *id006
+          description: Missing, malformed or expired access token, or wrong login credentials
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                default:
+                  summary: Unknown vehicle or one of another user
+                  value:
+                    error:
+                      code: not_found
+                      message: vehicle not found
+                      details: null
+                      request_id: fb956027107b4a219803813b9a854540
+          description: The resource does not exist or belongs to another user
+        '422':
+          description: Invalid input (`details` lists the fields) or no route between the points
+          content:
+            application/json:
+              schema: *id002
+              example:
+                error:
+                  code: validation_failed
+                  message: request validation failed
+                  details: null
+                  request_id: fb956027107b4a219803813b9a854540
+    delete:
+      tags:
+      - vehicles
+      summary: Delete a vehicle (its trips stay in the history, US-04)
+      description: Deletes a vehicle. Saved trips stay in the history with their own copy of the vehicle data (US-04).
+      operationId: delete_vehicle
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: vehicle_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Vehicle Id
+      responses:
+        '204':
+          description: Success, no content
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples: *id006
+          description: Missing, malformed or expired access token, or wrong login credentials
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                default:
+                  summary: Unknown vehicle or one of another user
+                  value:
+                    error:
+                      code: not_found
+                      message: vehicle not found
+                      details: null
+                      request_id: fb956027107b4a219803813b9a854540
+          description: The resource does not exist or belongs to another user
+        '422':
+          description: Invalid input (`details` lists the fields) or no route between the points
+          content:
+            application/json:
+              schema: *id002
+              example:
+                error:
+                  code: validation_failed
+                  message: request validation failed
+                  details: null
+                  request_id: fb956027107b4a219803813b9a854540
+  /api/v1/trips:
+    post:
+      tags:
+      - trips
+      summary: Calculate the cost of a trip and save it to the history (US-05 ... US-16)
+      description: |
+        Asks the routing engine for the route, splits it by country, prices fuel, road charges and lodging,
+        plans the days and an optional refuel stop, and saves the result to the history in one transaction.
+
+        The coordinates are used for routing only and are never stored. The response is the saved trip with its
+        cost lines. Errors: 422 for invalid input, when no route exists, or when there is no vehicle (none added,
+        or `vehicle_id` is unknown or belongs to someone else), 502 when the routing engine is not available.
+      operationId: create_trip
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TripCreate'
+            examples:
+              typical:
+                summary: One day, refuel advice
+                value:
+                  origin_label: Vilnius
+                  destination_label: Warsaw
+                  origin:
+                    lon: 25.28
+                    lat: 54.69
+                  destination:
+                    lon: 21.01
+                    lat: 52.23
+                  variant: fastest
+                  daily_limit_h: 8
+                  lodging_class: standard
+                  start_fuel: half
+              two_days:
+                summary: Two days, own price for the night, no toll roads
+                value:
+                  origin_label: Warsaw
+                  destination_label: Berlin
+                  origin:
+                    lon: 21.01
+                    lat: 52.23
+                  destination:
+                    lon: 13.4
+                    lat: 52.52
+                  variant: no_tolls
+                  daily_limit_h: 4
+                  lodging_class: comfort
+                  lodging_entered_eur: 70
+                  title: Warsaw to Berlin in two days
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripOut'
+              examples:
+                typical:
+                  summary: Vilnius - Warsaw in one day with a refuel stop
+                  value: &id009
+                    id: 6a1d0a76-0929-4e21-8aab-57a495838da8
+                    title: Vilnius - Warsaw
+                    origin_label: Vilnius
+                    destination_label: Warsaw
+                    departed_at: '2026-11-23T14:36:57.556210+02:00'
+                    arrival_at: '2026-11-23T20:12:13.627639+02:00'
+                    destination_country: PL
+                    variant: fastest
+                    distance_km: '460.0'
+                    duration_min: 335
+                    daily_limit_h: '8.0'
+                    nights: 0
+                    vehicle_id: 0389ba65-4fb7-453b-bf24-696b087c62d7
+                    vehicle_name: Family car
+                    fuel_type: petrol95
+                    consumption_l100: '7.5'
+                    start_fuel: half
+                    refuel_saving_eur: '0.00'
+                    price_date: '2026-11-09'
+                    total_eur: '50.46'
+                    created_at: '2026-11-23T14:36:57.485214+02:00'
+                    lines:
+                    - &id010
+                      kind: fuel
+                      country: LT
+                      distance_km: '187.5'
+                      unit_price: '1.554'
+                      amount_eur: '21.85'
+                      status: ok
+                    - &id011
+                      kind: fuel
+                      country: PL
+                      distance_km: '272.5'
+                      unit_price: '1.400'
+                      amount_eur: '28.61'
+                      status: ok
+                    refuel_stops:
+                    - &id012
+                      seq: 1
+                      country: PL
+                      km_from_start: '187.5'
+                      liters: '14.5'
+                      price_eur_l: '1.400'
+                two_days:
+                  summary: Warsaw - Berlin with one night and the user's own price
+                  value: &id008
+                    id: fb05908d-3144-4e7b-93f3-3bb4b1d28814
+                    title: Warsaw to Berlin in two days
+                    origin_label: Warsaw
+                    destination_label: Berlin
+                    departed_at: '2026-11-23T14:51:02.860132+02:00'
+                    arrival_at: '2026-11-24T16:15:09.568207+02:00'
+                    destination_country: DE
+                    variant: no_tolls
+                    distance_km: '460.0'
+                    duration_min: 324
+                    daily_limit_h: '4.0'
+                    nights: 1
+                    vehicle_id: 335b9b1c-9a9d-449b-bb2a-0f4e4974e1f9
+                    vehicle_name: Diesel van
+                    fuel_type: diesel
+                    consumption_l100: '8.0'
+                    start_fuel: null
+                    refuel_saving_eur: null
+                    price_date: '2026-11-09'
+                    total_eur: '121.84'
+                    created_at: '2026-11-23T14:51:02.823060+02:00'
+                    lines:
+                    - kind: fuel
+                      country: PL
+                      distance_km: '388.2'
+                      unit_price: '1.360'
+                      amount_eur: '42.24'
+                      status: ok
+                    - kind: fuel
+                      country: DE
+                      distance_km: '71.8'
+                      unit_price: '1.672'
+                      amount_eur: '9.60'
+                      status: ok
+                    - kind: lodging
+                      country: DE
+                      distance_km: null
+                      unit_price: null
+                      amount_eur: '70.00'
+                      status: user_entered
+                    refuel_stops: []
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples: *id006
+          description: Missing, malformed or expired access token, or wrong login credentials
+        '422':
+          content:
+            application/json:
+              schema: *id002
+              examples:
+                invalid:
+                  summary: Invalid coordinates and daily limit
+                  value:
+                    error:
+                      code: validation_failed
+                      message: request validation failed
+                      details:
+                      - field: origin.lon
+                        message: Input should be less than or equal to 180
+                      - field: daily_limit_h
+                        message: Input should be greater than or equal to 4.0
+                      request_id: fb956027107b4a219803813b9a854540
+                no_vehicle:
+                  summary: No vehicle added and none named
+                  value:
+                    error:
+                      code: validation_failed
+                      message: 'no vehicle: add a vehicle or pass an existing vehicle_id'
+                      details: null
+                      request_id: fb956027107b4a219803813b9a854540
+          description: Invalid input (`details` lists the fields) or no route between the points
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                default:
+                  summary: Routing engine not reachable; nothing is saved
+                  value:
+                    error:
+                      code: upstream_unavailable
+                      message: routing engine is not available
+                      details: null
+                      request_id: fb956027107b4a219803813b9a854540
+          description: The routing engine is not reachable
+    get:
+      tags:
+      - trips
+      summary: Trip history, newest first (US-17)
+      description: Returns the signed-in user's saved trips, newest first, in pages (`limit` 1-100, default 20;
+        `offset` from 0).
+      operationId: list_trips
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 20
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripPage'
+              examples:
+                default:
+                  summary: History page
+                  value:
+                    items:
+                    - *id008
+                    - *id009
+                    total: 2
+                    limit: 20
+                    offset: 0
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples: *id006
+          description: Missing, malformed or expired access token, or wrong login credentials
+        '422':
+          description: Invalid input (`details` lists the fields) or no route between the points
+          content:
+            application/json:
+              schema: *id002
+              examples:
+                default:
+                  summary: Page size too large
+                  value:
+                    error:
+                      code: validation_failed
+                      message: request validation failed
+                      details:
+                      - field: limit
+                        message: Input should be less than or equal to 100
+                      request_id: fb956027107b4a219803813b9a854540
+  /api/v1/trips/{trip_id}:
+    get:
+      tags:
+      - trips
+      summary: Trip details
+      description: Returns one saved trip with its cost lines and refuel stops. A trip of another user answers 404.
+      operationId: get_trip
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: trip_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Trip Id
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripOut'
+              examples:
+                default:
+                  summary: One saved trip
+                  value: *id009
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples: *id006
+          description: Missing, malformed or expired access token, or wrong login credentials
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                default:
+                  summary: Unknown trip, deleted trip or one of another user
+                  value:
+                    error:
+                      code: not_found
+                      message: trip not found
+                      details: null
+                      request_id: fb956027107b4a219803813b9a854540
+          description: The resource does not exist or belongs to another user
+        '422':
+          description: Invalid input (`details` lists the fields) or no route between the points
+          content:
+            application/json:
+              schema: *id002
+              example:
+                error:
+                  code: validation_failed
+                  message: request validation failed
+                  details: null
+                  request_id: fb956027107b4a219803813b9a854540
+    patch:
+      tags:
+      - trips
+      summary: Rename a saved trip
+      description: Changes only the title of a saved trip. The calculation itself never changes.
+      operationId: rename_trip
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: trip_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Trip Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TripRename'
+            examples:
+              default:
+                summary: New title
+                value:
+                  title: Warsaw business trip
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripOut'
+              examples:
+                default:
+                  summary: Renamed trip
+                  value:
+                    id: 6a1d0a76-0929-4e21-8aab-57a495838da8
+                    title: Warsaw business trip
+                    origin_label: Vilnius
+                    destination_label: Warsaw
+                    departed_at: '2026-11-23T14:36:57.556210+02:00'
+                    arrival_at: '2026-11-23T20:12:13.627639+02:00'
+                    destination_country: PL
+                    variant: fastest
+                    distance_km: '460.0'
+                    duration_min: 335
+                    daily_limit_h: '8.0'
+                    nights: 0
+                    vehicle_id: 0389ba65-4fb7-453b-bf24-696b087c62d7
+                    vehicle_name: Family car
+                    fuel_type: petrol95
+                    consumption_l100: '7.5'
+                    start_fuel: half
+                    refuel_saving_eur: '0.00'
+                    price_date: '2026-11-09'
+                    total_eur: '50.46'
+                    created_at: '2026-11-23T14:36:57.485214+02:00'
+                    lines:
+                    - *id010
+                    - *id011
+                    refuel_stops:
+                    - *id012
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples: *id006
+          description: Missing, malformed or expired access token, or wrong login credentials
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                default:
+                  summary: Unknown trip
+                  value:
+                    error:
+                      code: not_found
+                      message: trip not found
+                      details: null
+                      request_id: fb956027107b4a219803813b9a854540
+          description: The resource does not exist or belongs to another user
+        '422':
+          description: Invalid input (`details` lists the fields) or no route between the points
+          content:
+            application/json:
+              schema: *id002
+              example:
+                error:
+                  code: validation_failed
+                  message: request validation failed
+                  details: null
+                  request_id: fb956027107b4a219803813b9a854540
+    delete:
+      tags:
+      - trips
+      summary: Delete a trip (US-18)
+      description: Deletes a saved trip.
+      operationId: delete_trip
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: trip_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Trip Id
+      responses:
+        '204':
+          description: Success, no content
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples: *id006
+          description: Missing, malformed or expired access token, or wrong login credentials
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                default:
+                  summary: Unknown or already deleted trip
+                  value:
+                    error:
+                      code: not_found
+                      message: trip not found
+                      details: null
+                      request_id: fb956027107b4a219803813b9a854540
+          description: The resource does not exist or belongs to another user
+        '422':
+          description: Invalid input (`details` lists the fields) or no route between the points
+          content:
+            application/json:
+              schema: *id002
+              example:
+                error:
+                  code: validation_failed
+                  message: request validation failed
+                  details: null
+                  request_id: fb956027107b4a219803813b9a854540
+  /api/v1/countries:
+    get:
+      tags:
+      - reference data
+      summary: Supported countries
+      description: The eight countries the service covers. Public, no token needed.
+      operationId: countries
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/CountryOut'
+                type: array
+                title: Response Countries
+              examples:
+                default:
+                  summary: Supported countries (first three of eight)
+                  value:
+                  - code: CZ
+                    name: Czechia
+                    timezone: Europe/Prague
+                  - code: DE
+                    name: Germany
+                    timezone: Europe/Berlin
+                  - code: DK
+                    name: Denmark
+                    timezone: Europe/Copenhagen
+  /api/v1/fuel-prices:
+    get:
+      tags:
+      - reference data
+      summary: Latest national fuel prices (US-09)
+      description: The newest weekly national average price of the chosen fuel in every country. Public.
+      operationId: fuel_prices
+      parameters:
+      - name: fuel_type
+        in: query
+        required: true
+        schema:
+          enum:
+          - petrol95
+          - diesel
+          type: string
+          title: Fuel Type
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FuelPriceOut'
+                title: Response Fuel Prices
+              examples:
+                default:
+                  summary: Latest petrol 95 prices (first three of eight)
+                  value:
+                  - country: CZ
+                    price_eur_l: '1.476'
+                    bulletin_date: '2026-11-09'
+                  - country: DE
+                    price_eur_l: '1.712'
+                    bulletin_date: '2026-11-09'
+                  - country: DK
+                    price_eur_l: '1.854'
+                    bulletin_date: '2026-11-09'
+        '422':
+          description: Invalid input (`details` lists the fields) or no route between the points
+          content:
+            application/json:
+              schema: *id002
+              examples:
+                default:
+                  summary: Unknown fuel type
+                  value:
+                    error:
+                      code: validation_failed
+                      message: request validation failed
+                      details:
+                      - field: fuel_type
+                        message: Input should be 'petrol95' or 'diesel'
+                      request_id: fb956027107b4a219803813b9a854540
+  /api/v1/fuel-prices/{country}/trend:
+    get:
+      tags:
+      - reference data
+      summary: Price trend of up to 12 weeks (US-31)
+      description: |
+        Weekly prices of the last 12 weeks for one country; `country` is an ISO code such as `PL`. 404 when
+        there is no history.
+      operationId: fuel_price_trend
+      parameters:
+      - name: country
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Country
+      - name: fuel_type
+        in: query
+        required: true
+        schema:
+          enum:
+          - petrol95
+          - diesel
+          type: string
+          title: Fuel Type
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrendPoint'
+                title: Response Fuel Price Trend
+              examples:
+                default:
+                  summary: Diesel in Poland (first four of twelve weeks)
+                  value:
+                  - bulletin_date: '2026-08-24'
+                    price_eur_l: '1.368'
+                  - bulletin_date: '2026-08-31'
+                    price_eur_l: '1.360'
+                  - bulletin_date: '2026-09-07'
+                    price_eur_l: '1.352'
+                  - bulletin_date: '2026-09-14'
+                    price_eur_l: '1.364'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                default:
+                  summary: Unknown country or no history
+                  value:
+                    error:
+                      code: not_found
+                      message: no price history for this country and fuel
+                      details: null
+                      request_id: fb956027107b4a219803813b9a854540
+          description: The resource does not exist or belongs to another user
+        '422':
+          description: Invalid input (`details` lists the fields) or no route between the points
+          content:
+            application/json:
+              schema: *id002
+              examples:
+                default:
+                  summary: Unknown fuel type
+                  value:
+                    error:
+                      code: validation_failed
+                      message: request validation failed
+                      details:
+                      - field: fuel_type
+                        message: Input should be 'petrol95' or 'diesel'
+                      request_id: fb956027107b4a219803813b9a854540
+  /api/v1/speed-profiles:
+    get:
+      tags:
+      - reference data
+      summary: Average speed and motorway limit of the current season (US-26)
+      description: |
+        Average driving speed and motorway limit of every country for the current season (winter: November-
+        March). Public.
+      operationId: speed_profiles
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/SpeedProfileOut'
+                type: array
+                title: Response Speed Profiles
+              examples:
+                default:
+                  summary: Winter profiles (first two of eight)
+                  value:
+                  - country: CZ
+                    season: winter
+                    avg_speed_kmh: '84.0'
+                    motorway_limit_kmh: 130
+                    limit_note: null
+                  - country: DE
+                    season: winter
+                    avg_speed_kmh: '92.0'
+                    motorway_limit_kmh: null
+                    limit_note: no general limit, advised 130
+  /api/v1/lodging-rates:
+    get:
+      tags:
+      - reference data
+      summary: Typical nightly lodging prices (US-14)
+      description: Typical price per night by country and class. Public.
+      operationId: lodging_rates
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/LodgingRateOut'
+                type: array
+                title: Response Lodging Rates
+              examples:
+                default:
+                  summary: Typical nightly prices (first three of 24)
+                  value:
+                  - country: CZ
+                    class: economy
+                    nightly_eur: '42.00'
+                    checked_on: '2026-11-22'
+                  - country: CZ
+                    class: standard
+                    nightly_eur: '60.00'
+                    checked_on: '2026-11-22'
+                  - country: CZ
+                    class: comfort
+                    nightly_eur: '108.00'
+                    checked_on: '2026-11-22'
+components:
+  schemas:
+    ChangePasswordRequest:
+      properties:
+        old_password:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Old Password
+          examples:
+          - correct-horse-battery
+        new_password:
+          type: string
+          maxLength: 128
+          minLength: 8
+          title: New Password
+          examples:
+          - even-better-passphrase
+      type: object
+      required:
+      - old_password
+      - new_password
+      title: ChangePasswordRequest
+    CostLineOut:
+      properties:
+        kind:
+          type: string
+          enum:
+          - fuel
+          - road
+          - lodging
+          title: Kind
+        country:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Country
+          description: ISO 3166-1 alpha-2 code
+          examples:
+          - PL
+        distance_km:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Distance Km
+          description: Kilometres driven in this country (fuel lines)
+          examples:
+          - '272.5'
+        unit_price:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Unit Price
+          description: EUR per litre, per kilometre or per night
+          examples:
+          - '1.400'
+        amount_eur:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Amount Eur
+          examples:
+          - '28.61'
+        status:
+          type: string
+          enum:
+          - ok
+          - no_data
+          - estimate
+          - eu_average
+          - user_entered
+          title: Status
+          description: 'ok: from the data; eu_average: no price for the country, average of the others used; estimate:
+            typical value; user_entered: given by the caller; no_data: amount unknown'
+      type: object
+      required:
+      - kind
+      - country
+      - distance_km
+      - unit_price
+      - amount_eur
+      - status
+      title: CostLineOut
+      description: One line of the cost breakdown. The total of a trip is the sum of its lines.
+    CountryOut:
+      properties:
+        code:
+          type: string
+          title: Code
+        name:
+          type: string
+          title: Name
+        timezone:
+          type: string
+          title: Timezone
+      type: object
+      required:
+      - code
+      - name
+      - timezone
+      title: CountryOut
+    ErrorBody:
+      properties:
+        code:
+          type: string
+          title: Code
+          description: 'Stable machine-readable code: validation_failed, unauthorized, forbidden, not_found, conflict,
+            no_route, upstream_unavailable, internal_error'
+          examples:
+          - not_found
+        message:
+          type: string
+          title: Message
+          description: Human-readable explanation; may change, do not parse it
+          examples:
+          - trip not found
+        details:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Details
+          description: 'For validation_failed: a list of {field, message}; otherwise null'
+        request_id:
+          type: string
+          title: Request Id
+          description: Correlation id, also returned in the X-Request-ID header; quote it when reporting a problem
+          examples:
+          - fb956027107b4a219803813b9a854540
+      type: object
+      required:
+      - code
+      - message
+      - request_id
+      title: ErrorBody
+    ErrorResponse:
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorBody'
+      type: object
+      required:
+      - error
+      title: ErrorResponse
+      description: The single error format of the whole API.
+    FuelPriceOut:
+      properties:
+        country:
+          type: string
+          title: Country
+        price_eur_l:
+          type: string
+          title: Price Eur L
+        bulletin_date:
+          type: string
+          format: date
+          title: Bulletin Date
+      type: object
+      required:
+      - country
+      - price_eur_l
+      - bulletin_date
+      title: FuelPriceOut
+    LodgingRateOut:
+      properties:
+        country:
+          type: string
+          title: Country
+        class:
+          type: string
+          enum:
+          - economy
+          - standard
+          - comfort
+          title: Class
+        nightly_eur:
+          type: string
+          title: Nightly Eur
+        checked_on:
+          type: string
+          format: date
+          title: Checked On
+      type: object
+      required:
+      - country
+      - class
+      - nightly_eur
+      - checked_on
+      title: LodgingRateOut
+    LoginRequest:
+      properties:
+        email:
+          type: string
+          format: email
+          title: Email
+          examples:
+          - driver@example.com
+        password:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Password
+          examples:
+          - correct-horse-battery
+      type: object
+      required:
+      - email
+      - password
+      title: LoginRequest
+    Point:
+      properties:
+        lon:
+          type: number
+          maximum: 180.0
+          minimum: -180.0
+          title: Lon
+          examples:
+          - 25.28
+        lat:
+          type: number
+          maximum: 90.0
+          minimum: -90.0
+          title: Lat
+          examples:
+          - 54.69
+      type: object
+      required:
+      - lon
+      - lat
+      title: Point
+      description: A WGS84 coordinate. Longitude comes first (GeoJSON order).
+    RefreshRequest:
+      properties:
+        refresh_token:
+          type: string
+          maxLength: 200
+          minLength: 20
+          title: Refresh Token
+          description: The refresh token received at login; it can be used once
+          examples:
+          - 5ceIFcTIm95XFCvLwSZy4tZPOONIK4T3f7nYpJD9OxVp3VxwBd662d1j4zchTofv
+      type: object
+      required:
+      - refresh_token
+      title: RefreshRequest
+    RefuelStopOut:
+      properties:
+        seq:
+          type: integer
+          title: Seq
+          description: Order of the stop, starting at 1
+          examples:
+          - 1
+        country:
+          type: string
+          title: Country
+          examples:
+          - PL
+        km_from_start:
+          type: string
+          title: Km From Start
+          examples:
+          - '187.5'
+        liters:
+          type: string
+          title: Liters
+          examples:
+          - '14.5'
+        price_eur_l:
+          type: string
+          title: Price Eur L
+          examples:
+          - '1.400'
+      type: object
+      required:
+      - seq
+      - country
+      - km_from_start
+      - liters
+      - price_eur_l
+      title: RefuelStopOut
+      description: A suggested refuelling stop. Advice only; it is not part of the total.
+    RegisterRequest:
+      properties:
+        email:
+          type: string
+          format: email
+          title: Email
+          description: Account e-mail; stored in lower case, must be unique
+          examples:
+          - driver@example.com
+        password:
+          type: string
+          maxLength: 128
+          minLength: 8
+          title: Password
+          description: 8-128 characters
+          examples:
+          - correct-horse-battery
+        privacy_accepted:
+          type: boolean
+          const: true
+          title: Privacy Accepted
+          description: 'Must be true: the privacy notice has to be accepted (US-01)'
+      type: object
+      required:
+      - email
+      - password
+      - privacy_accepted
+      title: RegisterRequest
+    SpeedProfileOut:
+      properties:
+        country:
+          type: string
+          title: Country
+        season:
+          type: string
+          enum:
+          - summer
+          - winter
+          title: Season
+        avg_speed_kmh:
+          type: string
+          title: Avg Speed Kmh
+        motorway_limit_kmh:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Motorway Limit Kmh
+        limit_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Limit Note
+      type: object
+      required:
+      - country
+      - season
+      - avg_speed_kmh
+      - motorway_limit_kmh
+      - limit_note
+      title: SpeedProfileOut
+    TokenResponse:
+      properties:
+        access_token:
+          type: string
+          title: Access Token
+          description: 'JWT; send as ''Authorization: Bearer <token>'''
+          examples:
+          - eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refresh_token:
+          type: string
+          title: Refresh Token
+          description: Opaque single-use token for POST /auth/refresh
+        token_type:
+          type: string
+          const: bearer
+          title: Token Type
+          default: bearer
+        expires_in:
+          type: integer
+          title: Expires In
+          description: Access token lifetime in seconds
+          examples:
+          - 900
+      type: object
+      required:
+      - access_token
+      - refresh_token
+      - expires_in
+      title: TokenResponse
+      examples:
+      - access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOi...
+        expires_in: 900
+        refresh_token: 5ceIFcTIm95XFCvLwSZy4tZPOONIK4T3f7nYpJD9OxVp3VxwBd662d1j4zchTofv
+        token_type: bearer
+    TrendPoint:
+      properties:
+        bulletin_date:
+          type: string
+          format: date
+          title: Bulletin Date
+        price_eur_l:
+          type: string
+          title: Price Eur L
+      type: object
+      required:
+      - bulletin_date
+      - price_eur_l
+      title: TrendPoint
+    TripCreate:
+      properties:
+        origin_label:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Origin Label
+          description: Text shown for the start; only the label is stored, not the coordinates
+          examples:
+          - Vilnius
+        destination_label:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Destination Label
+          examples:
+          - Warsaw
+        origin:
+          $ref: '#/components/schemas/Point'
+          description: Start point; used for routing only and never stored
+        destination:
+          $ref: '#/components/schemas/Point'
+          description: End point; used for routing only and never stored
+        variant:
+          type: string
+          enum:
+          - fastest
+          - shortest
+          - no_tolls
+          title: Variant
+          description: fastest, shortest (shortest of the alternatives) or no_tolls (toll roads avoided)
+          default: fastest
+        vehicle_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Vehicle Id
+          description: Omit to use the default vehicle
+        daily_limit_h:
+          anyOf:
+          - type: number
+            maximum: 10.0
+            minimum: 4.0
+          - type: string
+          - type: 'null'
+          title: Daily Limit H
+          description: Maximum driving hours per day (4.0-10.0); splits the trip into days and nights
+          examples:
+          - 8
+        lodging_class:
+          type: string
+          enum:
+          - economy
+          - standard
+          - comfort
+          title: Lodging Class
+          description: 'Class of the typical nightly price: economy, standard or comfort'
+          default: standard
+        lodging_entered_eur:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: string
+          - type: 'null'
+          title: Lodging Entered Eur
+          description: Your own price per night; replaces the estimate
+          examples:
+          - 65.0
+        start_fuel:
+          anyOf:
+          - type: string
+            enum:
+            - full
+            - three_quarter
+            - half
+            - quarter
+          - type: 'null'
+          title: Start Fuel
+          description: Fuel level at departure (full, three_quarter, half, quarter); enables the refuel plan
+        title:
+          anyOf:
+          - type: string
+            maxLength: 120
+            minLength: 1
+          - type: 'null'
+          title: Title
+          description: Name in the history; defaults to 'origin - destination'
+      type: object
+      required:
+      - origin_label
+      - destination_label
+      - origin
+      - destination
+      title: TripCreate
+      examples:
+      - daily_limit_h: 8
+        destination:
+          lat: 52.23
+          lon: 21.01
+        destination_label: Warsaw
+        lodging_class: standard
+        origin:
+          lat: 54.69
+          lon: 25.28
+        origin_label: Vilnius
+        start_fuel: half
+        variant: fastest
+    TripOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        title:
+          type: string
+          title: Title
+        origin_label:
+          type: string
+          title: Origin Label
+        destination_label:
+          type: string
+          title: Destination Label
+        departed_at:
+          type: string
+          format: date-time
+          title: Departed At
+        arrival_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Arrival At
+        destination_country:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Destination Country
+        variant:
+          type: string
+          enum:
+          - fastest
+          - shortest
+          - no_tolls
+          title: Variant
+        distance_km:
+          type: string
+          title: Distance Km
+        duration_min:
+          type: integer
+          title: Duration Min
+        daily_limit_h:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Daily Limit H
+        nights:
+          type: integer
+          title: Nights
+        vehicle_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Vehicle Id
+        vehicle_name:
+          type: string
+          title: Vehicle Name
+        fuel_type:
+          type: string
+          enum:
+          - petrol95
+          - diesel
+          title: Fuel Type
+        consumption_l100:
+          type: string
+          title: Consumption L100
+        start_fuel:
+          anyOf:
+          - type: string
+            enum:
+            - full
+            - three_quarter
+            - half
+            - quarter
+          - type: 'null'
+          title: Start Fuel
+        refuel_saving_eur:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Refuel Saving Eur
+        price_date:
+          type: string
+          format: date
+          title: Price Date
+          description: Date of the fuel prices used
+        total_eur:
+          type: string
+          title: Total Eur
+          description: Sum of all cost lines
+          examples:
+          - '50.46'
+        created_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Created At
+        lines:
+          items:
+            $ref: '#/components/schemas/CostLineOut'
+          type: array
+          title: Lines
+        refuel_stops:
+          items:
+            $ref: '#/components/schemas/RefuelStopOut'
+          type: array
+          title: Refuel Stops
+      type: object
+      required:
+      - id
+      - title
+      - origin_label
+      - destination_label
+      - departed_at
+      - arrival_at
+      - destination_country
+      - variant
+      - distance_km
+      - duration_min
+      - daily_limit_h
+      - nights
+      - vehicle_id
+      - vehicle_name
+      - fuel_type
+      - consumption_l100
+      - start_fuel
+      - refuel_saving_eur
+      - price_date
+      - total_eur
+      - created_at
+      - lines
+      - refuel_stops
+      title: TripOut
+      description: A saved calculation. Vehicle data is a snapshot, so old trips never change.
+      examples:
+      - arrival_at: '2026-11-23T20:12:13.627639+02:00'
+        consumption_l100: '7.5'
+        created_at: '2026-11-23T14:36:57.485214+02:00'
+        daily_limit_h: '8.0'
+        departed_at: '2026-11-23T14:36:57.556210+02:00'
+        destination_country: PL
+        destination_label: Warsaw
+        distance_km: '460.0'
+        duration_min: 335
+        fuel_type: petrol95
+        id: 6a1d0a76-0929-4e21-8aab-57a495838da8
+        lines:
+        - amount_eur: '21.85'
+          country: LT
+          distance_km: '187.5'
+          kind: fuel
+          status: ok
+          unit_price: '1.554'
+        - amount_eur: '28.61'
+          country: PL
+          distance_km: '272.5'
+          kind: fuel
+          status: ok
+          unit_price: '1.400'
+        nights: 0
+        origin_label: Vilnius
+        price_date: '2026-11-09'
+        refuel_saving_eur: '0.00'
+        refuel_stops:
+        - country: PL
+          km_from_start: '187.5'
+          liters: '14.5'
+          price_eur_l: '1.400'
+          seq: 1
+        start_fuel: half
+        title: Vilnius - Warsaw
+        total_eur: '50.46'
+        variant: fastest
+        vehicle_id: 0389ba65-4fb7-453b-bf24-696b087c62d7
+        vehicle_name: Family car
+    TripPage:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/TripOut'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+          description: All trips of the user, regardless of the page
+        limit:
+          type: integer
+          title: Limit
+        offset:
+          type: integer
+          title: Offset
+      type: object
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      title: TripPage
+    TripRename:
+      properties:
+        title:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Title
+          examples:
+          - Warsaw business trip
+      type: object
+      required:
+      - title
+      title: TripRename
+    VehicleCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 60
+          minLength: 1
+          title: Name
+          description: Display name, 1-60 characters
+          examples:
+          - Family car
+        fuel_type:
+          type: string
+          enum:
+          - petrol95
+          - diesel
+          title: Fuel Type
+          description: petrol95 or diesel
+        consumption_l100:
+          anyOf:
+          - type: number
+            maximum: 30.0
+            minimum: 2.0
+          - type: string
+          title: Consumption L100
+          description: Litres per 100 km, 2.0-30.0
+          examples:
+          - 7.5
+        tank_l:
+          anyOf:
+          - type: number
+            maximum: 120.0
+            minimum: 20.0
+          - type: string
+          - type: 'null'
+          title: Tank L
+          description: Tank size in litres, 20-120; enables the refuel plan
+          examples:
+          - 50
+        is_default:
+          type: boolean
+          title: Is Default
+          description: Use this vehicle when a trip names none; at most one vehicle is the default
+          default: false
+      type: object
+      required:
+      - name
+      - fuel_type
+      - consumption_l100
+      title: VehicleCreate
+    VehicleOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+          examples:
+          - Family car
+        fuel_type:
+          type: string
+          enum:
+          - petrol95
+          - diesel
+          title: Fuel Type
+        consumption_l100:
+          type: string
+          title: Consumption L100
+          description: Litres per 100 km (decimal, serialised as a string)
+          examples:
+          - '7.5'
+        tank_l:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tank L
+          description: Tank size in litres or null
+          examples:
+          - '50.0'
+        is_default:
+          type: boolean
+          title: Is Default
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - name
+      - fuel_type
+      - consumption_l100
+      - tank_l
+      - is_default
+      - created_at
+      - updated_at
+      title: VehicleOut
+    VehicleUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 60
+            minLength: 1
+          - type: 'null'
+          title: Name
+        fuel_type:
+          anyOf:
+          - type: string
+            enum:
+            - petrol95
+            - diesel
+          - type: 'null'
+          title: Fuel Type
+        consumption_l100:
+          anyOf:
+          - type: number
+            maximum: 30.0
+            minimum: 2.0
+          - type: string
+          - type: 'null'
+          title: Consumption L100
+        tank_l:
+          anyOf:
+          - type: number
+            maximum: 120.0
+            minimum: 20.0
+          - type: string
+          - type: 'null'
+          title: Tank L
+        is_default:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Default
+      type: object
+      title: VehicleUpdate
+      description: 'Partial update: send only the fields that change.'
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      description: Access token from /auth/login
+      scheme: bearer
+tags:
+- name: service
+  description: Health checks for monitoring.
+- name: auth
+  description: Accounts, tokens and password.
+- name: vehicles
+  description: The user's vehicles (consumption, tank, default).
+- name: trips
+  description: Cost calculation and the history of saved trips.
+- name: reference data
+  description: 'Public data: countries, fuel prices, speed profiles, lodging rates.'

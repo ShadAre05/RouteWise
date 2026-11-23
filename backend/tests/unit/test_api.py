@@ -15,6 +15,7 @@ from app.services.reference_service import ReferenceService
 from app.services.trip_service import TripService
 from app.services.vehicle_service import VehicleService
 from tests import fakes
+from tests.contract import ContractClient
 
 TRIP_BODY = {
     "origin_label": "Vilnius",
@@ -41,7 +42,7 @@ def client(settings):
             ),
         }
     )
-    return TestClient(app, raise_server_exceptions=False)
+    return ContractClient(app, raise_server_exceptions=False)
 
 
 @pytest.fixture

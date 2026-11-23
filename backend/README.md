@@ -4,11 +4,7 @@ REST API of RouteWise (FastAPI + SQLAlchemy 2 + PostgreSQL/PostGIS). It authenti
 
 Interactive API documentation (OpenAPI / Swagger UI) is served by the application itself at **`/docs`** (ReDoc at `/redoc`, raw schema at `/openapi.json`).
 
-## Tested with
-- Python 3.13 (Docker image `python:3.13-slim`)
-- PostgreSQL 16 with PostGIS 3 (image `postgis/postgis:16-3.4`)
-- Docker 29 with Compose v2
-- Windows 11 and GitHub Actions (Ubuntu) as host systems
+The full API documentation (specification file, getting started, tutorial, authentication, errors, architecture) is in [`../docs/api/`](../docs/api/README.md). The file `docs/api/openapi.yaml` is generated from the code with `python scripts/export_openapi.py`; a unit test and the CI pipeline fail when it is out of date.
 
 ## Where each requirement is met
 | Requirement | Where |
@@ -17,7 +13,7 @@ Interactive API documentation (OpenAPI / Swagger UI) is served by the applicatio
 | Database + ORM | PostgreSQL 16 + PostGIS (see `../database`), SQLAlchemy 2 ORM (`app/db/models.py`, `app/repositories/sql_repositories.py`) |
 | Layered architecture | `api/` (presentation) → `services/` (business logic) → `repositories/` + `db/` (data access), `clients/` (external routing engine), `domain/` (plain objects), `core/` (config, logging, security, errors) |
 | SOLID | see the table below |
-| API description | OpenAPI generated from typed request/response models; every endpoint has a summary, status codes and an error model; section "Endpoints" below |
+| API description | OpenAPI 3.1 generated from typed models, committed as `../docs/api/openapi.yaml`, validated with Spectral; guides in `../docs/api/`; section "Endpoints" below |
 | Global error handling | `app/api/error_handlers.py`: one JSON error shape for domain errors, validation errors, HTTP errors and unexpected exceptions |
 | Structured logging | `app/core/logging.py`: JSON lines to stdout with a correlation id (`X-Request-ID`) in every line |
 | Production deployment | `../docker-compose.yml`, `Dockerfile`, CI workflow `../.github/workflows/backend.yml` (see "Deployment") |

@@ -22,11 +22,24 @@ def _tokens(pair: TokenPair) -> schemas.TokenResponse:
     responses={409: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
 )
 def register(body: schemas.RegisterRequest, service: AuthService = Depends(deps.auth_service)):
+    """
+    Creates an account and signs the user in. The password is hashed inside PostgreSQL (bcrypt); it is never
+    stored or logged.
+
+    Returns an access token (15 minutes) and a single-use refresh token. Errors: 409 when the e-mail is
+    taken, 422 when a field is invalid.
+    """
     return _tokens(service.register(body.email, body.password))
 
 
 @router.post("/auth/login", response_model=schemas.TokenResponse, summary="Sign in", responses=ERRORS)
 def login(body: schemas.LoginRequest, service: AuthService = Depends(deps.auth_service)):
+    """
+    Checks the e-mail and password and returns a token pair.
+
+    After 5 failed attempts the account is locked for 10 minutes; the answer is then the same 401 as for a
+    wrong password, so an attacker learns nothing.
+    """
     return _tokens(service.login(body.email, body.password))
 
 
@@ -34,11 +47,19 @@ def login(body: schemas.LoginRequest, service: AuthService = Depends(deps.auth_s
     "/auth/refresh", response_model=schemas.TokenResponse, summary="Exchange a refresh token", responses=ERRORS
 )
 def refresh(body: schemas.RefreshRequest, service: AuthService = Depends(deps.auth_service)):
+    """
+    Exchanges a refresh token for a new token pair. Every refresh token works **once** (rotation): the old
+    one is revoked, so a stolen and already used token is useless.
+    """
     return _tokens(service.refresh(body.refresh_token))
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT, summary="Revoke a refresh token")
 def logout(body: schemas.RefreshRequest, service: AuthService = Depends(deps.auth_service)):
+    """
+    Revokes a refresh token. Always answers 204, also for an unknown or already revoked token, so the call
+    is safe to repeat.
+    """
     service.logout(body.refresh_token)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -54,6 +75,7 @@ def change_password(
     claims=Depends(deps.current_claims),
     service: AuthService = Depends(deps.user_auth_service),
 ):
+    """Changes the password of the signed-in user and revokes all refresh tokens. Requires the old password."""
     service.change_password(claims.user_id, body.old_password, body.new_password)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -65,5 +87,6 @@ def change_password(
     responses={401: {"model": ErrorResponse}},
 )
 def delete_account(claims=Depends(deps.current_claims), service: AuthService = Depends(deps.user_auth_service)):
+    """Permanently deletes the account with its vehicles, trips and tokens (US-20). Cannot be undone."""
     service.delete_account(claims.user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

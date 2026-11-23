@@ -43,6 +43,8 @@ jobs:
       - name: Lint
         run: ruff check backend
         working-directory: .
+      - name: API specification lint (Spectral, OpenAPI ruleset)
+        run: npx --yes @stoplight/spectral-cli@6.15.0 lint docs/api/openapi.yaml --fail-severity=warn
       - name: Dependency vulnerability scan
         run: pip-audit -r backend/requirements.txt
       - name: Back-end tests with coverage gate (unit + integration against the real database)
