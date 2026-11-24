@@ -5,24 +5,40 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-val Teal = Color(0xFF0F766E)
-val TealDark = Color(0xFF115E59)
-val Amber = Color(0xFFB45309)
-val Ink = Color(0xFF1F2933)
-val Surface = Color(0xFFF7F9F9)
-val Danger = Color(0xFFB3261E)
+// Color tokens of the UX specification, chapter 6.1. Components use the Material roles below, never raw colors.
+val Ink = Color(0xFF0F1E3C)
+val Background = Color(0xFFF4F5F1)
+val Card = Color(0xFFFFFFFF)
+val Surface2 = Color(0xFFE3E7DF)
+val Ink2 = Color(0xFF4F5968)
+val Primary = Color(0xFF2F4B7C)
+val PrimaryContainer = Color(0xFFDCE5F5)
+val Accent = Color(0xFFB45F06)
+val AccentText = Color(0xFF8F4A00)
+val Error = Color(0xFFB3261E)
+val ErrorContainer = Color(0xFFFDECEA)
+val OnErrorContainer = Color(0xFF7A1812)
 
 private val Scheme = lightColorScheme(
-    primary = Teal,
+    primary = Primary,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFCCEDE9),
-    onPrimaryContainer = TealDark,
-    secondary = Amber,
-    background = Surface,
-    surface = Color.White,
-    onSurface = Ink,
+    primaryContainer = PrimaryContainer,
+    onPrimaryContainer = Primary,
+    secondary = Accent,
+    onSecondary = Color.White,
+    tertiary = AccentText,
+    background = Background,
     onBackground = Ink,
-    error = Danger,
+    surface = Card,
+    onSurface = Ink,
+    surfaceVariant = Surface2,
+    onSurfaceVariant = Ink2,
+    outline = Ink2,
+    outlineVariant = Surface2,
+    error = Error,
+    onError = Color.White,
+    errorContainer = ErrorContainer,
+    onErrorContainer = OnErrorContainer,
 )
 
 @Composable

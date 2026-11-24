@@ -147,7 +147,7 @@ fun SkeletonBox(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .alpha(alpha)
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), RoundedCornerShape(8.dp)),
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp)),
     )
 }
 
