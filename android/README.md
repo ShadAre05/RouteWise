@@ -20,7 +20,7 @@ Status of this document: it describes the code in this folder. Everything that i
 | 401 / 403 / 404 / 500 handling | `data/api/ApiException.kt` maps status and error code, `HttpRouteWiseApi` renews the token on 401 |
 | Typed API layer | `data/api/ApiModels.kt` (DTOs), `RouteWiseApi.kt` (interface), `HttpRouteWiseApi.kt` (HTTP) |
 | No tokens in code | Tokens are received at run time and kept in `EncryptedSharedPreferences` (`data/session/Session.kt`) |
-| Unit tests (>= 3 components) | `app/src/test/.../domain`, `.../data`, `.../ui` – 83 tests, see [Tests](#5-tests) |
+| Unit tests (>= 3 components) | `app/src/test/.../domain`, `.../data`, `.../ui` – 85 tests, see [Tests](#5-tests) |
 | UI / e2e tests | `app/src/test/.../ui/AppFlowTest.kt` – 2 tests with Compose test and Robolectric |
 
 ## 2. How to get and run the app
@@ -35,7 +35,7 @@ The APK is built in **demo mode**: the app uses built-in sample data and needs n
 
 - e-mail `demo@routewise.app`, password `demo-password-1`, or create any new account.
 
-Demo figures are illustrative (straight-line distance, fixed sample prices); they are not real prices.
+Demo figures are illustrative (straight-line distance, sample prices always dated three days ago); they are not real prices.
 
 ### 2.2 Build it yourself
 

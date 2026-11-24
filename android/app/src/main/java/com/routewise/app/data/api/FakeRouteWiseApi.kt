@@ -157,7 +157,7 @@ class FakeRouteWiseApi(
         pause()
         val base = PETROL[country.uppercase()]?.toBigDecimalOrNull() ?: throw ApiException(ApiErrorKind.NOT_FOUND, "no price history")
         val shift = if (fuelType == "diesel") BigDecimal("0.060") else BigDecimal.ZERO
-        val last = java.time.LocalDate.parse(DEMO_PRICE_DATE)
+        val last = java.time.LocalDate.parse(demoPriceDate())
         return (11 downTo 0).map { weeksAgo ->
             val wiggle = BigDecimal(((11 - weeksAgo) * 7 % 5) - 2).multiply(BigDecimal("0.006"))
             TrendPointDto(last.minusWeeks(weeksAgo.toLong()).toString(), (base + shift + wiggle).setScale(3).toPlainString())
@@ -258,7 +258,7 @@ class FakeRouteWiseApi(
             consumptionL100 = vehicle.consumptionL100,
             startFuel = request.startFuel,
             refuelSavingEur = stops?.let { "2.40" },
-            priceDate = DEMO_PRICE_DATE,
+            priceDate = demoPriceDate(),
             totalEur = total.setScale(2, RoundingMode.HALF_UP).toPlainString(),
             createdAt = start.toString(),
             lines = lines,
@@ -285,7 +285,8 @@ class FakeRouteWiseApi(
     companion object {
         const val DEMO_EMAIL = "demo@routewise.app"
         const val DEMO_PASSWORD = "demo-password-1"
-        const val DEMO_PRICE_DATE = "2026-11-09"
+        /** Demo prices are always "3 days old", so the stale-price warning (> 14 days) never fires in demo mode. */
+        fun demoPriceDate(today: java.time.LocalDate = java.time.LocalDate.now()): String = today.minusDays(3).toString()
         private val PETROL = mapOf(
             "LT" to "1.554", "LV" to "1.520", "EE" to "1.580", "PL" to "1.400",
             "DE" to "1.712", "DK" to "1.854", "CZ" to "1.476", "SK" to "1.620",
