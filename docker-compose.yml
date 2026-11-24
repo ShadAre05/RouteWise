@@ -12,7 +12,9 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PG_SUPERUSER}"]
+      # TCP check (-h): during the first start PostgreSQL runs a temporary server that answers only on the socket,
+      # so a socket check reports "healthy" before the real server accepts connections.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${PG_SUPERUSER}"]
       interval: 5s
       retries: 20
     restart: unless-stopped
@@ -35,7 +37,8 @@ services:
       RW_APP_PASSWORD: ${RW_APP_PASSWORD}
       RW_REPORTING_PASSWORD: ${RW_REPORTING_PASSWORD}
       RW_ADMIN_PASSWORD: ${RW_ADMIN_PASSWORD}
-    command: ["bash", "-c", "bash scripts/bootstrap.sh && bash scripts/migrate.sh && bash scripts/seed.sh"]
+      SEED_FLAG: ${SEED_FLAG:-}   # set SEED_FLAG=--test-data in .env for a demo (synthetic users, prices, trips)
+    command: ["bash", "-c", "bash scripts/bootstrap.sh && bash scripts/migrate.sh && bash scripts/seed.sh $${SEED_FLAG:-}"]
     restart: "no"
 
   api:
