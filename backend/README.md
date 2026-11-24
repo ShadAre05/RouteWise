@@ -135,6 +135,17 @@ Errors always look like `{"error": {"code": "not_found", "message": "...", "deta
 ## Known limitations (stated openly)
 - The routing engine is a separate service that needs map data; a hosted instance is not part of this repository.
 - Vignettes are charged once for every country the route enters (except with `no_tolls`); per-kilometre tolls use the kilometres on charged roads reported by OSRM and are shared between the countries that have a per-km tariff. The overnight stop city is not determined; lodging is priced in the destination country.
-- Fuel prices are not downloaded automatically: the database has the import procedures, but the bulletin downloader is not implemented, so prices come from the SQL seed and test-data files (`seed.sh --test-data` loads a 12-week synthetic history).
+- Fuel prices come from the EC Weekly Oil Bulletin ("Prices with taxes" workbook) through `python -m app.importers.run` (see [Fuel price import](#fuel-price-import)). It is started by hand and finds the file link on the bulletin page itself; the weekly schedule is not set up yet. Without an import the prices come from the SQL seed and test-data files (`seed.sh --test-data` loads a 12-week synthetic history).
 - Administration of reference data (tariffs, lodging, speed profiles) is done in the database with the `rw_admin_user` role; there is no admin HTTP endpoint yet.
 - The Docker image, the compose stack and the CI workflow are written to run from a clean checkout, but were not executed on GitHub/Docker in the environment where this code was written; the application, the database scripts and all tests were run against a real PostgreSQL 16 + PostGIS.
+
+## Fuel price import
+`app/importers` reads the EC Weekly Oil Bulletin workbook ("Prices with taxes", `.xlsx`), takes Euro-super 95 and diesel of the eight supported countries, converts EUR per 1000 l to EUR per litre and stores them through the database procedures `import_fuel_price` and `finish_fuel_import` (the date inside the file is the bulletin date). The whole file is stored in one transaction. If a country or a price is missing, the unit is not `1000 l` or the file cannot be read, nothing is stored, the failure is written to `fuel_import_log` and the old prices stay (US-21). A week that is already stored is ignored.
+
+```bash
+# automatic: the link of the latest workbook is read from the bulletin page (energy.ec.europa.eu)
+docker compose --profile import run --rm fuel-import
+# or a downloaded file in ./imports (not committed), or a direct link (--url, or FUEL_BULLETIN_URL in .env)
+docker compose --profile import run --rm fuel-import python -m app.importers.run --file /imports/<file>.xlsx
+```
+The container connects as `rw_admin_user` (password `RW_ADMIN_PASSWORD` from `.env`). The parser was checked on the file of 16 November 2026 (16 prices of 16) and the link search on the saved page of 24 November 2026. The download from the live site was not run from this code. The writing to the database is covered by unit tests with a recording connection and was not yet run against the real database from this code path.

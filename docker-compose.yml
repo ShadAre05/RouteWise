@@ -54,6 +54,20 @@ services:
       - "${API_PORT:-8000}:8000"
     restart: unless-stopped
 
+  fuel-import:       # optional, on demand: weekly import of the EC Weekly Oil Bulletin (see backend/README.md)
+    build: ./backend
+    profiles: ["import"]
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      ADMIN_DATABASE_URL: postgresql://rw_admin_user:${RW_ADMIN_PASSWORD}@db:5432/${PGDATABASE}
+      FUEL_BULLETIN_URL: ${FUEL_BULLETIN_URL:-}
+    volumes:
+      - ./imports:/imports:ro
+    command: ["python", "-m", "app.importers.run"]
+    restart: "no"
+
   osrm:              # optional: docker compose --profile routing up -d   (needs prepared map data, see backend/README.md)
     image: ghcr.io/project-osrm/osrm-backend:latest
     profiles: ["routing"]

@@ -55,5 +55,5 @@ Requirements: `psql` client 16, Bash. Production: run `seed.sh` **without** `--t
 
 ## Notes on data
 - Country borders: Natural Earth 1:110m (public domain), simplified.
-- Fuel prices in the test data are **synthetic**; real prices are meant to come from the EC Weekly Oil Bulletin through the import procedures `import_fuel_price` and `finish_fuel_import`; the downloader that calls them is not implemented yet.
+- Fuel prices in the test data are **synthetic**; real prices are meant to come from the EC Weekly Oil Bulletin through the import procedures `import_fuel_price` and `finish_fuel_import`; they are called by `python -m app.importers.run` of the back-end (see `backend/README.md`, "Fuel price import"); the weekly schedule is not set up yet.
 - Tariffs, lodging and speed values in `S02` are **demo values marked "not verified"**; the administrator verifies them before production.

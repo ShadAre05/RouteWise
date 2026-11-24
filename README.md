@@ -10,7 +10,7 @@
 - Saves every calculation to the trip history with a snapshot of the vehicle, so old trips never change.
 - Accounts with privacy-by-design: no coordinates are stored, the account and all its data can be deleted in the app.
 
-**Coverage:** Lithuania, Latvia, Estonia, Poland, Germany, Denmark, Czechia, Slovakia; passenger cars; petrol 95 and diesel. Fuel prices are national weekly averages in the shape of the EC Weekly Oil Bulletin, with history kept. The database provides the import procedures (`import_fuel_price`, `finish_fuel_import`); the program that downloads the bulletin is not part of this repository yet, so the prices in the demo data are loaded from SQL files.
+**Coverage:** Lithuania, Latvia, Estonia, Poland, Germany, Denmark, Czechia, Slovakia; passenger cars; petrol 95 and diesel. Fuel prices are national weekly averages in the shape of the EC Weekly Oil Bulletin, with history kept. The database provides the import procedures (`import_fuel_price`, `finish_fuel_import`), and the back-end reads the bulletin workbook with `python -m app.importers.run` (see [`backend/README.md`](backend/README.md)); the weekly schedule is not set up yet, and the prices in the demo data are loaded from SQL files.
 
 ## Architecture
 ```
