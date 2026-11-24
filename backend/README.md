@@ -78,9 +78,15 @@ cp .env.example .env            # in the repository root; set your own passwords
 docker compose up -d --build    # database, one-shot setup (migrations + reference data), API
 curl http://localhost:8000/health/ready
 ```
-Open `http://localhost:8000/docs`. The `db-init` container creates the roles, applies `database/db/migrations` and loads `database/db/seed` on every start (all idempotent).
+Open `http://localhost:8000/docs`. For a demo add `SEED_FLAG=--test-data` to `.env` before the first start (synthetic users, fuel prices and trips; leave it empty in production). Windows PowerShell: `Copy-Item .env.example .env`.
 
-**Routing engine.** The trip calculation needs OSRM with map data. The optional compose profile starts it: download an extract of your region (for example from download.geofabrik.de), prepare it once with `osrm-extract`, `osrm-partition` and `osrm-customize` into `./osrm-data/region.osrm`, then `docker compose --profile routing up -d`. All other endpoints work without it; `POST /trips` answers `502 upstream_unavailable` while the engine is not reachable.
+**Try it in Swagger (`/docs`):** `POST /api/v1/auth/register` with an e-mail, a password of at least 8 characters and `"privacy_accepted": true`; copy the `access_token` from **your own** response (not from the examples below it); press **Authorize** at the top of the page and paste it; then `POST /api/v1/vehicles`, `GET /api/v1/vehicles`, `POST /api/v1/trips`. The token lives 15 minutes; sign in again with `POST /auth/login` when it expires. Without a token every protected endpoint answers `401 missing bearer token`, which is correct.
+
+**If the stack does not start:** `docker compose logs db-init` shows the reason. After changing the passwords in `.env` run `docker compose down -v` first (the roles of the old database keep the old passwords; the command deletes the local data).
+
+The `db-init` container creates the roles, applies `database/db/migrations` and loads `database/db/seed` on every start (all idempotent).
+
+**Routing engine.** The trip calculation needs OSRM with map data. The optional compose profile starts it: download an extract of your region (for example from download.geofabrik.de), prepare it once with `osrm-extract`, `osrm-partition` and `osrm-customize` into `./osrm-data/region.osrm`, then `docker compose --profile routing up -d`. All other endpoints work without it; `POST /trips` answers `502 upstream_unavailable` while the engine is not reachable. For a quick look without map data set `OSRM_BASE_URL=https://router.project-osrm.org` in `.env` (the public demo server of the OSRM project: not for production, and its support for alternative routes and toll exclusion is not guaranteed) and run `docker compose up -d`.
 
 ### Locally (development)
 ```bash

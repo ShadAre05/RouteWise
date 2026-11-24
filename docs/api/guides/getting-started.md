@@ -25,10 +25,12 @@ docker compose up -d --build
 curl http://localhost:8000/health/ready      # {"status":"ready"}
 ```
 
-Open `http://localhost:8000/docs`: every endpoint can be tried there ("Try it out").
+Open `http://localhost:8000/docs`: every endpoint can be tried there ("Try it out"). Protected endpoints need a token: register or sign in, copy the `access_token` from your own response and press **Authorize**.
+
+For demo data (fuel prices, test users) add `SEED_FLAG=--test-data` to `.env` before the first start; without it the database has only the countries and the demo rates, and `/fuel-prices` is empty. Real prices: `docker compose --profile import run --rm fuel-import` (see `backend/README.md`, "Fuel price import").
 
 Trip calculation needs the routing engine (OSRM) with map data. Without it every other endpoint works and
-`POST /trips` answers `502 upstream_unavailable`; see [`backend/README.md`](../../../backend/README.md).
+`POST /trips` answers `502 upstream_unavailable`; see [`backend/README.md`](../../../backend/README.md). For a quick look set `OSRM_BASE_URL=https://router.project-osrm.org` in `.env` (public demo server, not for production) and run `docker compose up -d`.
 
 ## 3. Look at public data (no token)
 ```bash

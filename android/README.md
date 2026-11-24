@@ -49,12 +49,21 @@ cd android
 
 ### 2.3 Use the real back-end
 
-Start the back-end (`docker compose up -d --build`, see the root README), then build with the demo mode switched
-off. `10.0.2.2` is how an Android emulator reaches the computer it runs on:
+1. Start the back-end from the repository root (`docker compose up -d --build`, see the root README). A trip
+   calculation needs a routing engine: set `OSRM_BASE_URL` in `.env` (root README, "How to review each part").
+   Without one the app shows "The calculation service did not answer in time" (`SRV-502`); everything else works.
+2. Open the **`android`** folder (not the repository root) in Android Studio and wait for the Gradle sync. In
+   `android/gradle.properties` set `demoMode=false` (do not commit this change). Create an emulator (Device Manager,
+   a Pixel with API 34) and press Run.
+3. In the app **register a new account**: the demo login exists only in demo mode.
+
+Or build from the command line with the demo mode switched off. `10.0.2.2` is how an Android emulator reaches the computer it runs on:
 
 ```bash
 ./gradlew assembleDebug -PdemoMode=false -PapiBaseUrl=http://10.0.2.2:8000/
 ```
+
+On a physical phone connected by cable use `adb reverse tcp:8000 tcp:8000` and `-PapiBaseUrl=http://localhost:8000/`; the address of the computer in the local network is not accepted (clear-text HTTP is limited to `10.0.2.2` and `localhost`).
 
 The base URL is a build setting, not a constant in the code. Clear-text HTTP is allowed only for `10.0.2.2` and
 `localhost` (`res/xml/network_security_config.xml`); a public server must use HTTPS.

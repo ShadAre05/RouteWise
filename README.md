@@ -30,17 +30,35 @@ Everything on the server side runs in Docker Compose.
 | [`docs/api/`](docs/api/) | API documentation: OpenAPI 3.1 specification, Getting Started, integration tutorial, authentication, errors, architecture, changelog | [`docs/api/README.md`](docs/api/README.md) |
 | [`android/`](android/) | Android client (Kotlin, Jetpack Compose): trip planning, cost budget, history, vehicles, profile | [`android/README.md`](android/README.md) |
 
-Further parts (the Android app) will be added as separate folders.
-
 ## Quick start (whole back-end stack)
+Requirements: Docker with Compose v2.
 ```bash
-cp .env.example .env              # put your own passwords and JWT_SECRET into .env (never commit it)
-docker compose up -d --build      # PostgreSQL + PostGIS, database setup, API
+cp .env.example .env              # Windows PowerShell: Copy-Item .env.example .env
 ```
-API documentation: `http://localhost:8000/docs`. Details: [`backend/README.md`](backend/README.md) and [`database/README.md`](database/README.md).
+Open `.env` and set your own values (never commit this file):
+- the passwords and `JWT_SECRET` (at least 32 characters; `python -c "import secrets; print(secrets.token_hex(32))"`);
+- for a demo also `SEED_FLAG=--test-data`: it loads synthetic users, fuel prices and trips. **Leave it empty in production.**
+
+```bash
+docker compose up -d --build      # PostgreSQL + PostGIS, database setup (migrations, seeds), API
+docker compose ps                 # db and api must be "healthy"
+```
+API documentation and a place to try every endpoint: `http://localhost:8000/docs`. If you change the passwords in `.env`
+after the first start, remove the old database volume first: `docker compose down -v` (this deletes the local data).
+
+## How to review each part
+| Part | How to see it |
+|---|---|
+| Database | `database/README.md`: tables, roles, 97 tests; the stack above creates it from the migrations |
+| Back-end API | `http://localhost:8000/docs`: `POST /api/v1/auth/register`, copy `access_token` from **your** response into **Authorize**, then try the endpoints. Public data (`/countries`, `/fuel-prices`) needs no token. Details: `backend/README.md` |
+| Trip calculation | needs a routing engine (OSRM). For a quick look put `OSRM_BASE_URL=https://router.project-osrm.org` into `.env` (public demo server, not for production) and run `docker compose up -d`; the self-hosted OSRM with map data is part of the deployment stage (`backend/README.md`, "Routing engine") |
+| Real fuel prices | `docker compose --profile import run --rm fuel-import` downloads the EC Weekly Oil Bulletin and stores the prices (`backend/README.md`, "Fuel price import") |
+| API documentation | `docs/api/README.md` (guides, reference, `openapi.yaml`); a mock server needs no database |
+| Android app | demo mode needs no server: download the APK from the latest run of the **Android** workflow (Actions, artifact `routewise-debug-apk`), log in with `demo@routewise.app` / `demo-password-1`. With the real back-end: `android/README.md`, section 2.3 |
 
 ## Status
-The database and the back-end are implemented and tested. The Android app is in preparation.
+The database, the back-end and the Android client are implemented and tested. Deployment to a server (hosted routing
+engine, HTTPS, scheduled price import) is the next stage.
 
 ## Security note
 No keys or passwords are stored in this repository. Credentials are read from environment variables (see `.env.example`, `backend/.env.example`, `database/.env.example`).
